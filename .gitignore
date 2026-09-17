@@ -1,0 +1,10 @@
+node_modules/
+.cache/
+.local/
+dist/
+dist-electron/
+release/
+native/bin/
+coverage/
+*.log
+.DS_Store
