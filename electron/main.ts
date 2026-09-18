@@ -26,7 +26,6 @@ let store: Store;
 let quitting = false;
 let shortcutAvailable = false;
 let nativeAvailable = false;
-let retentionTimer: ReturnType<typeof setInterval> | undefined;
 let shortcutHealthTimer: ReturnType<typeof setInterval> | undefined;
 let refreshingPermissions = false;
 const devUrl = process.env.VITE_DEV_SERVER_URL;
@@ -39,7 +38,7 @@ function reportShortcutError(result: { ok: boolean; message?: string }) {
   if (!result.ok) {
     if (['transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status)) return;
     const snapshot = controller.snapshot();
-    if (snapshot.session.status !== 'error') snapshot.session = { ...snapshot.session, status: 'error', practice: false, errorCode: 'shortcut_failed', error: result.message };
+    if (snapshot.session.status !== 'error') snapshot.session = { ...snapshot.session, status: 'error', errorCode: 'shortcut_failed', error: result.message };
     overlay.webContents.send('typeless:snapshot', snapshot);
     voiceOverlay.publish(snapshot.session);
   }
@@ -50,7 +49,7 @@ function trusted(contents: Electron.WebContents, url: string) {
 }
 function showMain() { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } }
 function windowOptions(): Electron.BrowserWindowConstructorOptions {
-  return { backgroundColor: '#fafafa', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false, spellcheck: false } };
+  return { backgroundColor: '#ffffff', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false, spellcheck: false } };
 }
 function secureWindow(window: BrowserWindow) {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -75,11 +74,13 @@ async function refreshShortcutHealth() {
   try { await controller.refreshPermissions(); } catch { /* The next health check retries without prompting. */ }
   finally { refreshingPermissions = false; }
 }
-async function configureSettings(applyLogin = false) {
+async function configureSettings(applyLogin = false, applyShortcut = true) {
   const settings = store.snapshot().settings;
-  globalShortcut.unregisterAll();
-  try { shortcutAvailable = globalShortcut.register(settings.shortcut.fallback, () => { void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); }); } catch { shortcutAvailable = false; }
-  await native.configureShortcut(settings.shortcut.primary).catch(() => {});
+  if (applyShortcut) {
+    globalShortcut.unregisterAll();
+    try { shortcutAvailable = globalShortcut.register(settings.shortcut.fallback, () => { void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); }); } catch { shortcutAvailable = false; }
+    await native.configureShortcut(settings.shortcut.primary).catch(() => {});
+  }
   if (applyLogin && app.isPackaged && ['darwin', 'win32'].includes(process.platform)) app.setLoginItemSettings({ openAtLogin: settings.general.launchAtLogin });
   await controller.refreshPermissions();
 }
@@ -91,7 +92,7 @@ else {
       available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
       encrypt: value => safeStorage.encryptString(value).toString('base64'), decrypt: value => safeStorage.decryptString(Buffer.from(value, 'base64')),
     });
-    mainWindow = new BrowserWindow({ ...windowOptions(), width: 1120, height: 800, minWidth: 840, minHeight: 600, show: false, title: 'Typeless' });
+    mainWindow = new BrowserWindow({ ...windowOptions(), width: 920, height: 760, minWidth: 720, minHeight: 620, show: false, title: 'Typeless' });
     overlay = new BrowserWindow({ ...windowOptions(), ...voiceWindowSize, frame: false, transparent: true, backgroundColor: '#00000000', focusable: false, show: false, resizable: false, movable: false, minimizable: false, maximizable: false, hasShadow: false, skipTaskbar: true, alwaysOnTop: true, ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}) });
     overlay.setAlwaysOnTop(true, 'floating'); overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     voiceOverlay = new VoiceOverlay(overlay, () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea);
@@ -120,14 +121,13 @@ else {
     });
     controller = new Controller(store, new Providers(), {
       capture: command => { if (!quitting && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('typeless:capture', command); },
-      context: () => native.context(),
       paste: (text, signal) => delivery.paste(text, signal),
       publish: snapshot => {
         if (quitting || !mainWindow || mainWindow.isDestroyed() || !overlay || overlay.isDestroyed()) return;
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
       },
-      permissions, copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(), quit: () => app.quit(), settingsChanged: loginChanged => configureSettings(loginChanged),
+      permissions, copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(), quit: () => app.quit(), settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
     }, app.getVersion());
     const checkSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) => {
       if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !trusted(event.sender, event.senderFrame.url)) throw new Error('Untrusted IPC sender.');
@@ -167,12 +167,10 @@ else {
     powerMonitor.on('unlock-screen', () => { void refreshShortcutHealth(); });
     shortcutHealthTimer = setInterval(() => { void refreshShortcutHealth(); }, 2000);
     shortcutHealthTimer.unref();
-    retentionTimer = setInterval(() => { store.prune(); controller.publish(); }, 60000);
-    retentionTimer.unref();
   }).catch(error => { console.error('Typeless initialization failed:', error instanceof Error ? error.stack : 'Unknown initialization error'); dialog.showErrorBox('Typeless', 'The app could not initialize. Check the local data directory and build outputs.'); app.quit(); });
 }
 app.on('activate', () => { showMain(); void refreshShortcutHealth(); });
 app.on('window-all-closed', () => { /* Keep the tray and hidden capture renderer alive. */ });
 app.on('before-quit', () => {
-  quitting = true; clearInterval(retentionTimer); clearInterval(shortcutHealthTimer); voiceOverlay?.hide(); controller?.sessions.cancel(); native.stop(); globalShortcut.unregisterAll();
+  quitting = true; clearInterval(shortcutHealthTimer); voiceOverlay?.hide(); controller?.sessions.cancel(); native.stop(); globalShortcut.unregisterAll();
 });

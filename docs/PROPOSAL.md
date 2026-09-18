@@ -1,139 +1,94 @@
-# Typeless: product proposal and implementation plan
+# Typeless: current product scope and implementation plan
 
-Date: 2026-09-17. Decision: build the first usable macOS and Windows release together. Implementation was authorized after the initial research request. This document describes the intended product; actual completion and verification belong in [VALIDATION.md](VALIDATION.md).
+Date: 2026-09-18. Target version: 0.1.5. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
 
 ## Product direction
 
-Create a personal, bring-your-own-key dictation application: one tap starts recording, another finishes, and AI turns speech into faithful, readable text on the clipboard, with an optional paste into the current application. The product should feel like a small native writing utility: a quiet menu-bar/tray presence, a compact recording overlay, and a clear light settings window. No account or hosted backend is required.
+Build a small personal AI dictation utility for macOS and Windows: tap, speak, tap again, and receive faithful text on the clipboard with optional paste into the current application. Use a quiet tray/menu-bar presence, a compact non-activating capsule, and one light configuration window. No application account, hosted backend or sync is required.
 
-The key improvement over opaque personalization is user control. Vocabulary, memories and application writing rules are visible and editable. Raw transcripts remain recoverable if cleanup fails. Provider destinations and configuration are explicit.
+The window contains one compact recording control, a conditional current result, and exactly three first-level tabs: **AI 配置**, **基本设置**, and **表达风格**. There is no separate Home-to-Settings journey. The latest user decision limits the product to dictation, necessary AI connections, basic preferences and writing style. Additional management surfaces are outside this scope.
 
-The public Typeless guide documents the same toggle interaction, with Fn on macOS and Right Alt on Windows. Its broader offering includes cleanup, language handling, dictionary learning, personalization, translation and selected-text assistance. These are vendor-documented capabilities, not features we personally benchmarked. See the [product study](research/typeless-product.md) for the feature matrix, independent experience reports, source links and uncertainty ledger.
+The [complete Quickstart review](research/quickstart-review.md), with [dictation/action evidence](research/quickstart-dictation-and-actions.md) and [preferences/recovery evidence](research/quickstart-preferences-and-learning.md), distinguishes published interface evidence from inference. The earlier [settings study](research/settings-simplification.md) covers only that narrower topic. Official screenshots support flat setting rows and direct controls. They do not establish vendor autosave persistence or a three-level polishing selector. Our three-level control and atomic provider form are explicit project decisions.
 
-## Scope and fidelity
+## Configuration interaction
 
-| Area | First usable release on both desktops | Later enhancement |
-|---|---|---|
-| Dictation | Start/stop toggle, device choice, waveform, main-window timer, cancellation, finite duration, silence detection | Push-to-talk, longer chunked sessions, additional microphone modes |
-| Recognition | MiMo preset and independent OpenAI-compatible transcription adapter | Further vendor adapters and genuinely streaming audio backends |
-| Text | Conservative cleanup, raw recovery, explicit translation, custom writing preferences | Selection-bound voice editing with reversible replacement |
-| Personalization | User dictionary, explicit scoped memory, application profiles, correction-based opt-in memory | Reviewed automatic suggestions and richer style learning |
-| Integration | Global shortcut, automatic retained copy, optional current-application paste | Expanded editor compatibility and full transactional undo |
-| Local data | Optional history, expiry, text export, delete, no stored raw audio after session lifecycle | Optional encrypted cross-device sync |
-| Distribution | macOS Apple silicon build and Windows x64 implementation/package | Intel Mac and Windows ARM qualification, signed automatic updates |
+| Surface | Contents | Save behavior |
+| --- | --- | --- |
+| AI configuration | Independent speech and polishing provider forms, each with endpoint, model, credential, and speech protocol where needed | One explicit Save per provider submits its fields atomically; failed saves retain the draft and show an error |
+| Basic settings | Microphone, primary/fallback shortcuts, automatic paste, sounds, login startup and permission status | Switches/selectors save immediately; text saves on blur or Enter; failures expose retry |
+| Writing style | Unchanged transcription, light polishing, strong polishing, optional personal instructions | Level saves immediately; multiline instructions save on blur or Command/Ctrl+Enter |
 
-General web assistance, mobile keyboards, team administration and account billing are outside this first release. A registered OS IME is unnecessary for the requested workflow; the application cooperates with existing input methods.
+No global Save button is needed. Credentials are an intentional exception to immediate saving: address and key changes must not be sent as separate partially edited configurations. Saved keys never echo into the renderer. An empty key field retains its existing value; explicit deletion removes it. An endpoint-origin or ASR-protocol change invalidates the old credential unless a replacement accompanies it.
 
-## Shortcut and recording experience
+Use a white background, near-black text, subtle separators and generous spacing. Prefer direct fields and grouped rows to nested cards, disclosures or decorative summaries. Errors appear next to the relevant action. Normal completion must not open the main window or turn the capsule into a large status panel. The unconfigured primary action opens AI configuration directly; recoverable setup errors link to the relevant settings tab. No setup wizard is added.
 
-The macOS default is **one isolated Fn tap to start, then one isolated Fn tap to stop**. Releasing the first tap does not finish dictation. Fn combinations must not accidentally trigger recording. A conventional configurable shortcut provides a fallback when native permissions or hardware events are unavailable.
+## Dictation and delivery
 
-On Windows, most Fn keys are handled below the application-visible keyboard layer. Microsoft explicitly documents that Fn usually cannot be remapped. The usable default is Right Alt, with chord/AltGr filtering and an alternative configurable combination. Universal Windows Fn support is not an achievable software-only acceptance requirement. Sources: [Microsoft Keyboard Manager](https://learn.microsoft.com/en-us/windows/powertoys/keyboard-manager) and [Typeless Dictate](https://www.typeless.com/help/quickstart/dictate), accessed 2026-09-17.
+macOS uses an isolated Fn tap to start and another to stop. Windows uses isolated Right Alt with chord/AltGr filtering. A configurable Command/Ctrl+Shift+Space fallback and the application recording button remain available when the primary shortcut cannot be used. Universal Windows Fn support is not assumed.
 
-Recording can begin anywhere without an input-field eligibility check. Application context is best effort and does not gate recording. The normal non-activating capsule shows only a live waveform during recording and a loading animation during recognition, cleanup and delivery. It hides after successful copying and the optional paste attempt, including when no input field is focused. Timers and recovery details belong in the main window; brief recovery notices do not open that window automatically. Right-click exposes cancellation without permanent overlay controls. Practice stays in the main window and automatically copies without pasting. Silence does not automatically end a thinking pause; the configured duration cap still applies. Cancellation stops capture, aborts requests and fences pending native dispatch; it cannot undo an input event already delivered.
-
-```mermaid
-stateDiagram-v2
-  [*] --> Idle
-  Idle --> Arming: First tap
-  Arming --> Recording: Microphone ready
-  Arming --> Error: Permission or device failure
-  Recording --> Transcribing: Second tap / duration cap
-  Recording --> Cancelled: Cancel
-  Transcribing --> Polishing: Recognition succeeds
-  Transcribing --> Error: Recognition fails
-  Polishing --> Inserting: Final text or raw fallback ready
-  Polishing --> Cancelled: Cancel
-  Transcribing --> Cancelled: Cancel
-  Inserting --> Ready: Copied / paste dispatched or confirmed
-  Inserting --> Error: Copy failed
-  Inserting --> Cancelled: Cancel
-  Ready --> Review: Retained output or uncertain delivery
-  Error --> Transcribing: Retry retained session audio
-  Review --> Idle: Copy / new session
-  Ready --> Idle: New session
-  Cancelled --> Idle: New session
-```
-
-The application never presses Enter or clicks Send. It always copies final text, then optionally dispatches the platform paste shortcut to the current foreground application. There is no original-target lock or forced focus restoration. With no input field or unavailable paste permission, copied text remains available for manual paste; receiving-application behavior is not inferred from shortcut dispatch.
-
-## Architecture
-
-Use Electron + React + TypeScript for the shared application and business logic. A Swift helper handles macOS events/accessibility. A Windows C# helper handles keyboard hooks and current-application paste dispatch. The [implementation decision](IMPLEMENTATION_DECISION.md) records why this replaced the research's initial Tauri preference and its runtime-size tradeoff. The [desktop architecture study](research/desktop-architecture.md) contains the detailed API evidence, platform constraints and acceptance matrix.
+Recording starts anywhere without capturing an original target or classifying the foreground application. No Accessibility-tree lookup, editable-field requirement or terminal gate precedes the microphone. The capsule shows a waveform only after capture starts and a loading animation during processing. It is non-activating and hides after copying and the optional paste attempt. Hover reveals cancel and a finish control while recording; processing exposes cancel. Clicking an error explicitly opens recovery. These controls must preserve the foreground editor during ordinary recording and completion.
 
 ```mermaid
 flowchart LR
-  H[Native shortcut and optional application context] --> C[Session controller]
-  C --> R[Microphone recorder]
-  R --> A[ASR adapter]
-  A --> P[Text processor]
-  D[Approved dictionary, memory and app rules] --> P
-  P --> V[Output validation]
-  V --> I[Copy then optional system paste]
-  V --> U[Review and raw recovery]
-  C --> S[Local settings and optional history]
+  S[Shortcut or recording button] --> R[Microphone recording]
+  R --> A[Speech recognition]
+  A --> P{Polishing enabled?}
+  P -->|No| C[Copy original transcript]
+  P -->|Yes| T[Text provider]
+  T -->|Success| F[Copy final text]
+  T -->|Failure| C
+  C --> D{Automatic paste enabled?}
+  F --> D
+  D -->|Yes| I[Dispatch paste to current application]
+  D -->|No| E[Keep clipboard and finish]
+  I --> E
 ```
 
-The renderer has no Node integration and no direct access to keys. A narrow preload bridge validates messages and IPC senders. Only the local application can request microphone permission. Session IDs prevent stale audio, duplicated stops and late model responses from changing the current session. The main process owns network requests, encrypted credentials, cancellation, history and insertion decisions.
+Every completed result replaces the clipboard and stays there. Automatic paste dispatches Command+V/Ctrl+V to the current foreground application, without focus restoration or an original-target lock. It never presses Enter. If there is no usable input or paste is unavailable, copied text remains available for manual use. Dispatched and confirmed delivery must remain distinct; a shortcut event is not proof that an editor accepted text.
 
-The main process writes final text to the clipboard and leaves it there. Practice, manual mode, text-only processing and raw fallback all follow this copy-first rule. Automatic paste uses the system shortcut for the current foreground application; it does not validate an original field or require AX editor inspection. Pending operations retain cancellation and deadline checks. Paste failure does not turn successful copying into a failed dictation. A dispatched OS event is not proof of visible input, and previous clipboard content is not restored by production code.
+Cancellation aborts capture and provider work, fences late results, and prevents superseded jobs from overwriting a newer clipboard result. It cannot undo a copy or paste already completed. An uncertain paste is never automatically dispatched twice. Clipboard-copy failures are separate errors; polishing failure instead preserves the original transcript, copies it, and leaves a warning.
 
-## Provider design
+The recorder produces mono 16 kHz PCM16 WAV with a 60-second default cap. Silence alone does not terminate a thinking pause. Recognition failures can retain only the active audio in memory for bounded retry; success, cancellation, another session or quitting releases it.
 
-MiMo defaults to `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`, with a user-entered key. Its documented ASR request is `POST /chat/completions` containing a Base64 `input_audio` message. It accepts WAV/MP3 with a 10 MB encoded-audio limit. It is not the standard OpenAI multipart transcription route. The separate OpenAI-compatible ASR adapter uses `/audio/transcriptions`. See the exact source-linked contracts and examples in the [provider study](research/providers.md).
+## Providers and writing behavior
 
-The initial recorder produces mono PCM WAV, with a conservative visible application duration cap. The chosen sample rate and cap are application decisions, not undocumented MiMo guarantees. The encoded-size limit is checked before network submission. A text SSE response is not proof of real-time audio-input support.
+MiMo uses the default base `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`, and a user-provided key. Its adapter sends Base64 audio in a `/chat/completions` message. The independent OpenAI-compatible ASR adapter uses multipart `/audio/transcriptions`. Exact provider contracts and sources belong in the [provider study](research/providers.md). No provider change silently substitutes another service.
 
-Cleanup has an independent base URL, key and model, with one visible selector for no polishing, light polishing or strong polishing. No polishing returns the original transcript without a text-model request. Light polishing removes clear fillers and accidental repetitions with minimal rephrasing. Strong polishing also resolves explicit self-corrections and removes redundant scaffolding, while preserving facts, names, identifiers, quantities, negation and uncertainty. The existing persisted enable/strength fields express these choices without replacing saved configuration. New installations default to strong polishing. Translation is an explicit mode with a selected target language and remains available when ordinary polishing is off. Dictated questions remain text to write, not requests for the model to execute.
+The text connection has its own URL, model and key. The user-facing levels are:
 
-Model errors, refusal, truncation, malformed responses and empty output never count as successful final text. Successful ASR remains available if cleanup fails. Recognition errors retain only bounded in-memory retry audio for the active failed session. Cancellation and starting another session release it. Provider changes never silently send audio to a fallback vendor.
+- Unchanged transcription: no text-model request.
+- Light polishing: remove clear fillers and accidental repetitions while preserving phrasing.
+- Strong polishing: also resolve explicit self-corrections and remove redundant scaffolding, preserving facts, entities, identifiers, quantities, negation and uncertainty.
 
-A base-URL origin change invalidates the associated saved key unless the user explicitly supplies a replacement. Cross-origin redirects do not forward authorization. A model-list connection check is labeled as such; it does not claim to validate transcription or model access. Request cancellation cannot guarantee that the remote provider avoided billing.
+Strong is the new-install default. Personal instructions influence expression without turning dictated content into executable model instructions. An unresolved name stays unresolved; a cleanup model must not invent it. Malformed, refused, truncated or empty model responses are failures, not successful polished text. Original recognition remains available when cleanup fails. The current session exposes original and edited views; copying either is clipboard-only, never another model request or paste. A new session resets its view and copy feedback. Personal instructions remain saved but inactive when polishing is disabled.
 
-## Memory and local data
+Prompts and mock HTTP fixtures can establish requested behavior and request contracts; they cannot establish real output quality. Any quality claim requires separately authorized live-provider evaluation on representative speech, including Chinese/English mixing, negation, numbers, quoted fillers and self-corrections.
 
-| Data | Purpose | Control |
-|---|---|---|
-| Dictionary | Canonical names, terms and explicit replacement hints in cleanup | Add/edit/delete, scope, CSV import/export; the first MiMo adapter has no verified ASR hotword parameter |
-| Writing preferences | Global cleanup strength and instructions | Editable settings, reset by user |
-| App profile | Style rules for a selected application | Explicit app name, enable switch, delete |
-| Memory | User-approved recurring writing facts or preferences | Visible content, provenance, scope, enable and delete |
-| Correction memory | A user-selected lesson from editing a history entry | Explicit remember action; no background keystroke monitoring |
-| History | Review raw/final text and reprocess text | Opt-in storage, retention days, delete/export |
-| Audio | Current recognition job and immediate failure recovery | Memory only; no raw-audio history or cloud sync |
+## Architecture and local data
 
-One local settings store owns configuration and optional text history. API keys are encrypted with OS-protected storage before persistence; they are never echoed into UI snapshots or exported history. If encryption is unavailable, plaintext persistence is not an acceptable fallback. Deleting a memory removes it from future prompts, including when history is independently retained.
+Use Electron, React and TypeScript for shared interface and logic, Swift for macOS native events, and a Windows C# helper for keyboard hooks and paste dispatch. The renderer has no Node integration or direct key access. A narrow preload bridge validates actions and IPC senders. The main process owns network requests, credentials, lifecycle, clipboard and paste decisions. Session IDs and cancellation signals fence old audio, late responses and duplicate completion.
 
-BYOK still sends audio to the selected ASR provider and text plus approved personalization to the cleanup provider. Application context is an explicit option. The baseline does not read screenshots, arbitrary documents, existing clipboard contents for model context, or continuous typing. External data retention follows each configured provider's terms; the application cannot promise provider-wide zero retention. No analytics or hosted sync is required.
+One local settings store owns active configuration and encrypted credentials. Keys use OS-protected encryption before persistence; plaintext fallback is prohibited. Settings other than credentials are not encrypted by this application. The current result is transient and is not written as a transcript archive. Audio is memory-only, including the bounded recognition retry window.
 
-## Screens and first run
+Audio goes to the chosen speech provider; enabled polishing sends the transcript and personal writing instructions to the chosen text provider. The pipeline does not gather screenshots, arbitrary documents, application-specific context or continuous typing. No provider-wide zero-retention or offline claim follows from local credential storage. Production code leaves the new clipboard text in place rather than restoring prior content.
 
-The home screen concentrates on recording, readiness, the current result and recovery. History, Dictionary, Memory, App Profiles and Settings have separate navigation. Settings expose the two provider configurations, microphone device, shortcut, output language, translation target, writing instructions, history retention, context permissions and startup behavior.
+The [implementation decision](IMPLEMENTATION_DECISION.md) explains the Electron/native tradeoff. Older broad research remains evidence of investigated options, not a current feature checklist.
 
-First run explains the audio/text destinations, collects the user's keys and endpoints, checks permissions on explicit action, then lets the user verify microphone and shortcut behavior by practicing inside the app. This is guided settings plus a practice flow, not a separate automatic hardware test suite. Missing keys are visible and do not masquerade as a ready cloud transcription service. The interface defaults to Chinese for this user, with a light, restrained appearance and accessible labels, focus and keyboard controls.
+## Acceptance and distribution
 
-## Validation, milestones and operating cost
+Implementation and validation are separate. Required checks include:
 
-Implementation proceeds through four dependent gates: shared contracts and native feasibility; real recording/provider/data workflows; full UI and cross-platform integration; packaging and acceptance evidence. Native system tests, real-provider tests, unit tests, UI checks and signed distribution are separate gates. Both desktop implementations advance in each phase; Windows is not a later product launch.
+1. Exactly three configuration destinations; no extra navigation step to reach their core controls.
+2. Immediate level/select/switch saving, text-field commit behavior, failure feedback and restart persistence.
+3. Independent atomic provider saves, retained drafts on failure, no echoed keys, credential-origin binding and no plaintext persistence.
+4. Real capture framing, correct provider routes, unchanged-transcript mode with no cleanup request, and raw fallback on cleanup failure.
+5. Cancellation and late-response fencing, duplicate-stop protection, serialized clipboard ownership and no repeated uncertain paste.
+6. Recording with no input field; external editor input events, retained clipboard, no Enter, no focus theft and correct capsule lifecycle.
+7. Primary/fallback shortcut status independently reported; native unavailable/permission-denied cases remain actionable.
+8. Capsule hover cancel/finish and click-to-recover, specific error routes, clipboard-only original/result copying, and new-session isolation. External-editor tests must establish that hover interaction does not steal the paste destination.
 
-Required tests cover toggles and chords, microphone failures, WAV correctness, MiMo payload and encoded-size checks, independent transcription formats, malformed/refused outputs, credential-origin binding, cancellation, current-application paste, retained clipboard output, recording without an input field, dictionary/memory CRUD, history retention, and restart persistence. Controlled mock-provider integration verifies the application pipeline without pretending to measure live model quality.
+Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Performance goals are responsive recording feedback and a clearly identified ASR/cleanup state while waiting. Any latency number must be measured with network, audio length, selected model and hardware recorded. No numerical service latency or recognition accuracy is promised before actual keyed tests. The first benchmark set should include Chinese/English mixing, negation, dates/amounts, quoted fillers, self-correction, lists and technical identifiers.
+Version 0.1.5 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication, automatic updates or platform-runtime acceptance. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
-The provider study records MiMo's publicly listed ASR price as CNY 0.5 per hour of audio on the research date; verify the account's actual billing terms before budgeting. Estimated usage cost equals audio hours multiplied by the selected ASR rate, plus cleanup input/output tokens multiplied by that provider's rates. Text model cost cannot be fixed before the user selects a provider and model. Direct desktop-to-provider access requires no application server hosting cost.
-
-## Requirement traceability
-
-| User requirement | Component | Acceptance |
-|---|---|---|
-| All work in `Typeless` | Project structure and local build caches | Source, research, build outputs and evidence reside inside this directory |
-| Research Typeless and produce a complete plan | Three evidence reports plus this proposal | Source-linked feature matrix, UX, platform/provider constraints and decisions |
-| MiMo ASR, user-configured key, official default | MiMo adapter and settings | Correct request fixture; real key-based acceptance explicitly separate |
-| Other recognition vendors | Independent provider interface and OpenAI adapter | Switching routes/payloads without coupling cleanup configuration |
-| OpenAI-compatible polishing | Text processor | User URL/key/model; raw fallback; preservation fixtures |
-| Fn start/stop | Native shortcuts and shared state machine | Two isolated taps on macOS; documented usable Windows alternative |
-| Memory and personalization | Dictionary, memory, profiles and correction flow | Inspect/edit/delete/disable and verify next request context |
-| macOS and Windows together | Shared app plus two native helpers | Both platform sources/packages and separate native acceptance evidence |
-| Proceed autonomously to a complete first implementation | Coordinated implementation and validation | Runnable artifact, instructions, real results and explicit remaining limitations |
-
-The final delivery index is [README.md](../README.md). Current implementation and test results are documented in [VALIDATION.md](VALIDATION.md); this proposal alone does not assert that any acceptance gate passed.
+Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

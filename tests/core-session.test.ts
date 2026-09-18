@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Store } from '../src/core/store';
-import { Providers } from '../src/core/providers';
+import { ProviderError, Providers } from '../src/core/providers';
+import { Controller } from '../electron/controller';
 import { Sessions, type SessionHost } from '../src/core/session';
 
 const dirs: string[] = [];
@@ -19,12 +20,12 @@ function setup(provider = providers()) {
   store.saveSettings({ cleanup: { enabled: true, model: 'text' } }, { asr: 'key', cleanup: 'text-key' });
   let clipboard = '';
   const host = {
-    capture: vi.fn(), context: vi.fn(async () => ({ appName: 'Editor' })),
+    capture: vi.fn(),
     copy: vi.fn(async (text: string, signal?: AbortSignal) => { if (!signal?.aborted) clipboard = text; }),
     paste: vi.fn(async (_text: string, _signal?: AbortSignal): ReturnType<SessionHost['paste']> => ({ ok: true, status: 'dispatched' })),
     changed: vi.fn(),
   };
-  return { sessions: new Sessions(store, provider, host), store, host, provider, clipboard: () => clipboard };
+  return { file: join(dir, 'state.json'), sessions: new Sessions(store, provider, host), store, host, provider, clipboard: () => clipboard };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -39,43 +40,71 @@ async function finishRecording(sessions: Sessions) {
 afterEach(() => dirs.splice(0).forEach(path => rmSync(path, { recursive: true, force: true })));
 
 describe('record anywhere and copy before paste', () => {
-  it('starts the microphone even when native context is unavailable', async () => {
-    const { sessions, host, clipboard } = setup(); host.context.mockRejectedValueOnce(new Error('Native helper unavailable.'));
+  it('records without native context and copies before paste without persisting transcripts', async () => {
+    const { sessions, host, clipboard, file, store } = setup(); const saved = readFileSync(file, 'utf8');
     await sessions.toggle();
     expect(host.capture).toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }));
     await finishRecording(sessions);
     expect(clipboard()).toBe('clean'); expect(host.paste).toHaveBeenCalledTimes(1);
-    expect(sessions.session.targetApp).toBe('');
-  });
-  it('does not wait for a hanging context request before recording or indefinitely delay cleanup', async () => {
-    const { sessions, host, clipboard } = setup(); host.context.mockImplementationOnce(() => new Promise(() => {}));
-    await sessions.toggle(); expect(host.capture).toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }));
-    await finishRecording(sessions); expect(clipboard()).toBe('clean'); expect(sessions.session.status).toBe('ready');
-  });
-  it.each(['', 'Terminal'])('records without an editable-field eligibility check for context %s', async appName => {
-    const { sessions, host, provider } = setup(); host.context.mockResolvedValueOnce({ appName });
-    await sessions.toggle(); await finishRecording(sessions);
-    expect(host.copy).toHaveBeenCalledWith('clean', expect.any(AbortSignal));
-    expect(vi.mocked(provider.cleanup).mock.calls[0][4].targetApp).toBe(appName);
     expect(host.copy.mock.invocationCallOrder[0]).toBeLessThan(host.paste.mock.invocationCallOrder[0]);
+    expect(readFileSync(file, 'utf8')).toBe(saved); expect(Object.keys(store.snapshot())).toEqual(['settings']);
   });
   it.each(['confirmed', 'dispatched'])('distinguishes %s delivery while retaining the copied text', async status => {
     const { sessions, host, clipboard } = setup(); host.paste.mockResolvedValueOnce({ ok: true, status });
     await sessions.toggle(); await finishRecording(sessions);
     expect(sessions.session).toMatchObject({ status: 'ready', copied: true, delivery: status, inserted: true });
     expect(clipboard()).toBe('clean');
-    await expect(sessions.retry()).rejects.toThrow(); await expect(sessions.useRaw()).rejects.toThrow();
+    await expect(sessions.retry()).rejects.toThrow(); await sessions.copy('raw'); expect(clipboard()).toBe('raw'); expect(sessions.session.text).toBe('clean');
     expect(host.paste).toHaveBeenCalledTimes(1);
   });
-  it.each(['practice', 'automatic-paste-off', 'text-only'])('automatically copies %s output without pasting', async mode => {
+  it('explicitly copies available raw text after cancellation without pasting or accepting late cleanup', async () => {
+    const { sessions, host, provider, clipboard } = setup();
+    const pending = deferred<{ text: string; warning: undefined }>();
+    provider.cleanup = vi.fn(() => pending.promise);
+    await sessions.toggle(); const processing = finishRecording(sessions);
+    await vi.waitFor(() => expect(sessions.session.status).toBe('polishing'));
+    sessions.cancel(); expect(sessions.session.text).toBe(''); expect(sessions.session.rawText).toBe('raw');
+    await sessions.copy('raw'); expect(clipboard()).toBe('raw'); expect(host.paste).not.toHaveBeenCalled();
+    pending.resolve({ text: 'late text', warning: undefined }); await processing;
+    expect(clipboard()).toBe('raw'); expect(host.copy).toHaveBeenCalledTimes(1); expect(host.paste).not.toHaveBeenCalled();
+  });
+  it('exposes retry only while recoverable audio or text is retained and paste is unconsumed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessions, provider } = setup();
+      expect(sessions.session.canRetry).toBe(false);
+      await sessions.toggle(); await sessions.capture({ type: 'error', sessionId: sessions.session.id, code: 'microphone_unavailable', message: 'Microphone unavailable.' });
+      expect(sessions.session.canRetry).toBe(false);
+      provider.transcribe = vi.fn(async () => { throw new Error('Network unavailable.'); });
+      await sessions.toggle(); await finishRecording(sessions);
+      expect(sessions.session.canRetry).toBe(true); expect(sessions.session.errorCode).toBe('asr_failed');
+      await vi.advanceTimersByTimeAsync(5 * 60000);
+      expect(sessions.session.canRetry).toBe(false);
+      provider.transcribe = vi.fn(async () => 'raw');
+      await sessions.toggle(); await finishRecording(sessions);
+      expect(sessions.session.canRetry).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+  it.each(['no_speech', 'microphone_disconnected', 'microphone_denied', 'microphone_unavailable', 'capture_failed'] as const)('preserves capture error %s and clears capture/retry state', async code => {
+    const { sessions, host } = setup(); await sessions.toggle();
+    await sessions.capture({ type: 'error', sessionId: sessions.session.id, code, message: 'Capture fixture failure.' });
+    expect(sessions.session).toMatchObject({ status: 'error', errorCode: code, canRetry: false, level: 0 });
+    expect(host.capture).toHaveBeenLastCalledWith({ type: 'cancel', sessionId: sessions.session.id });
+    expect(host.copy).not.toHaveBeenCalled(); expect(host.paste).not.toHaveBeenCalled();
+  });
+  it.each(['401', 'timeout', 'network'])('preserves ASR provider error %s without automatic resubmission', async code => {
+    const { sessions, provider, host } = setup(); provider.transcribe = vi.fn(async () => { throw new ProviderError('Provider fixture failure.', code); });
+    await sessions.toggle(); await finishRecording(sessions);
+    expect(sessions.session).toMatchObject({ status: 'error', errorCode: `asr_${code}`, canRetry: true });
+    expect(provider.transcribe).toHaveBeenCalledTimes(1); expect(host.paste).not.toHaveBeenCalled(); sessions.cancel();
+  });
+  it('automatically copies output without pasting when automatic paste is off', async () => {
     const { sessions, host, store, clipboard } = setup();
-    if (mode === 'automatic-paste-off') store.saveSettings({ general: { autoInsert: false } });
-    if (mode === 'text-only') await sessions.processText('typed source');
-    else { await sessions.toggle('dictate', mode === 'practice'); await finishRecording(sessions); }
+    store.saveSettings({ general: { autoInsert: false } });
+    await sessions.toggle(); await finishRecording(sessions);
     expect(sessions.session).toMatchObject({ status: 'ready', delivery: 'copied', copied: true, inserted: false });
     expect(clipboard()).toBe('clean'); expect(host.paste).not.toHaveBeenCalled();
-    await sessions.useRaw(); expect(clipboard()).toBe(mode === 'text-only' ? 'typed source' : 'raw');
-    expect(host.paste).not.toHaveBeenCalled();
+    await sessions.copy('raw'); expect(clipboard()).toBe('raw'); expect(host.paste).not.toHaveBeenCalled();
   });
   it('can retry copy-only processing without ever dispatching paste', async () => {
     const { sessions, host, store, clipboard } = setup(); store.saveSettings({ general: { autoInsert: false } });
@@ -130,13 +159,6 @@ describe('record anywhere and copy before paste', () => {
 });
 
 describe('cancellation and asynchronous clipboard fencing', () => {
-  it('ignores an old context result after starting a new recording', async () => {
-    const { sessions, host } = setup(); const old = deferred<{ appName: string }>();
-    host.context.mockReturnValueOnce(old.promise); await sessions.toggle(); sessions.cancel();
-    host.context.mockResolvedValueOnce({ appName: 'New app' }); await sessions.toggle(); await finishRecording(sessions);
-    old.resolve({ appName: 'Old app' }); await old.promise;
-    expect(sessions.session.targetApp).toBe('New app');
-  });
   it('never copies or pastes a recognition response that arrives after cancellation', async () => {
     const { sessions, provider, host } = setup(); const response = deferred<string>(); provider.transcribe = vi.fn(() => response.promise);
     await sessions.toggle(); const pending = finishRecording(sessions);
@@ -144,13 +166,14 @@ describe('cancellation and asynchronous clipboard fencing', () => {
     expect(host.copy).not.toHaveBeenCalled(); expect(host.paste).not.toHaveBeenCalled(); expect(sessions.session.status).toBe('cancelled');
   });
   it('passes cancellation to queued clipboard work so an old result cannot overwrite the new one', async () => {
-    const { sessions, provider, host, clipboard } = setup(); const copying = deferred<void>();
+    const { sessions, provider, host, store, clipboard } = setup(); store.saveSettings({ general: { autoInsert: false } }); const copying = deferred<void>();
     provider.cleanup = vi.fn(async (_settings, _key, raw) => ({ text: raw, warning: undefined }));
     const actualCopy = host.copy.getMockImplementation()!;
     host.copy.mockImplementationOnce(async (text, signal) => { await copying.promise; await actualCopy(text, signal); });
-    const old = sessions.processText('old'); await vi.waitFor(() => expect(host.copy).toHaveBeenCalledTimes(1));
+    provider.transcribe = vi.fn(async () => 'old'); await sessions.toggle();
+    const old = finishRecording(sessions); await vi.waitFor(() => expect(host.copy).toHaveBeenCalledTimes(1));
     const signal = host.copy.mock.calls[0][1]; sessions.cancel(); expect(signal?.aborted).toBe(true);
-    await sessions.processText('new'); copying.resolve(); await old;
+    provider.transcribe = vi.fn(async () => 'new'); await sessions.toggle(); await finishRecording(sessions); copying.resolve(); await old;
     expect(clipboard()).toBe('new'); expect(sessions.session).toMatchObject({ text: 'new', copied: true, delivery: 'copied' }); expect(host.paste).not.toHaveBeenCalled();
   });
   it('does not publish ready while paste is pending and does not retract the clipboard on cancellation', async () => {
@@ -159,19 +182,17 @@ describe('cancellation and asynchronous clipboard fencing', () => {
     await vi.waitFor(() => expect(host.paste).toHaveBeenCalled());
     expect(sessions.session).toMatchObject({ status: 'inserting', delivery: 'pending', copied: true });
     expect(host.changed.mock.calls.some(([state]) => state.status === 'ready')).toBe(false);
-    await expect(sessions.toggle()).rejects.toThrow(); await expect(sessions.processText('competing')).rejects.toThrow();
+    await expect(sessions.toggle()).rejects.toThrow();
     sessions.cancel(); expect(clipboard()).toBe('clean'); expect(sessions.session).toMatchObject({ status: 'cancelled', copied: true, delivery: 'copied' });
     paste.resolve({ ok: true, status: 'confirmed' }); await pending;
     expect(sessions.session).toMatchObject({ status: 'cancelled', inserted: false, delivery: 'copied' });
   });
-  it('honors changed privacy and deleted memory before delayed cleanup', async () => {
+  it('honors changed editing preferences before delayed cleanup', async () => {
     const { sessions, provider, store } = setup(); const response = deferred<string>(); provider.transcribe = vi.fn(() => response.promise);
-    store.saveSettings({ privacy: { memoryEnabled: true, shareAppContext: true } });
-    store.saveMemory({ id: 'removed', content: 'private preference', enabled: true, scope: '*', source: 'manual', createdAt: '' });
     await sessions.toggle(); const pending = finishRecording(sessions); await vi.waitFor(() => expect(provider.transcribe).toHaveBeenCalled());
-    store.delete('memories', 'removed'); store.saveSettings({ privacy: { memoryEnabled: false, shareAppContext: false }, cleanup: { enabled: false } });
+    store.saveSettings({ cleanup: { enabled: false }, writing: { instructions: 'Current preference', strength: 'light' } });
     response.resolve('raw'); await pending;
-    const call = vi.mocked(provider.cleanup).mock.calls[0]; expect(call[0].privacy.memoryEnabled).toBe(false); expect(call[0].privacy.shareAppContext).toBe(false); expect(call[0].cleanup.enabled).toBe(false); expect(call[4].memories).toEqual([]);
+    const call = vi.mocked(provider.cleanup).mock.calls[0]; expect(call[0].cleanup.enabled).toBe(false); expect(call[0].writing).toMatchObject({ strength: 'light', instructions: 'Current preference' });
   });
   it('keeps credentials bound to the provider selected before asynchronous recognition', async () => {
     const { sessions, provider, store } = setup(); const response = deferred<string>(); provider.transcribe = vi.fn(() => response.promise);
@@ -195,11 +216,19 @@ describe('editing request and clipboard integration', () => {
     expect(fetcher).toHaveBeenCalledTimes(requests); expect(sessions.session.rawText).toBe(raw); expect(clipboard()).toBe(expected);
     expect(host.paste).toHaveBeenCalledWith(expected, expect.any(AbortSignal));
   });
-  it('still translates in no-edit mode and automatically copies the translated response', async () => {
-    const fetcher = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'Synthetic translated response.' } }] })));
-    const provider = new Providers(fetcher as typeof fetch); provider.transcribe = vi.fn(async () => '原始转录');
-    const { sessions, store, clipboard } = setup(provider); store.saveSettings({ cleanup: { enabled: false } });
-    await sessions.toggle('translate'); await finishRecording(sessions);
-    expect(fetcher).toHaveBeenCalledTimes(1); expect(sessions.session.rawText).toBe('原始转录'); expect(clipboard()).toBe('Synthetic translated response.');
+});
+
+describe('configuration application', () => {
+  it('does not reconfigure shortcuts for unrelated saves and distinguishes persisted settings from OS apply failure', async () => {
+    const { store, provider, host } = setup();
+    const settingsChanged = vi.fn(async (_changes: { login: boolean; shortcut: boolean }) => {});
+    const controller = new Controller(store, provider, { ...host, settingsChanged, publish: vi.fn(), permissions: vi.fn(), show: vi.fn(), hide: vi.fn(), quit: vi.fn() }, 'test');
+    expect((await controller.dispatch({ type: 'settings.save', patch: { writing: { instructions: 'Use concise prose.' } } })).ok).toBe(true);
+    expect(settingsChanged).not.toHaveBeenCalled();
+    settingsChanged.mockRejectedValueOnce(new Error('OS permission denied.'));
+    const result = await controller.dispatch({ type: 'settings.save', patch: { general: { launchAtLogin: true } } });
+    expect(result).toMatchObject({ ok: true, message: expect.stringContaining('saved') });
+    expect(settingsChanged).toHaveBeenCalledWith({ login: true, shortcut: false });
+    expect(controller.snapshot().settings.general.launchAtLogin).toBe(true);
   });
 });

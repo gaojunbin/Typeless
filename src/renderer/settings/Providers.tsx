@@ -1,41 +1,61 @@
+import { useEffect, useRef, useState } from 'react';
 import { Field } from '../ui';
-import type { RunAction, SettingsSectionProps } from './types';
+import type { SettingsSectionProps } from './types';
 
 type Provider = 'asr' | 'cleanup';
-interface ProvidersProps extends SettingsSectionProps {
-  keys: Record<Provider, string>;
-  changeKey: (provider: Provider, value: string) => void;
-  deleteKey: (provider: Provider) => Promise<void>;
-  run: RunAction;
-  dirty: boolean;
-}
-
+interface ProviderDraft { baseUrl: string; model: string; kind: 'mimo' | 'openai' }
 function endpointChanged(current: string, saved: string) {
   try { return new URL(current).origin !== new URL(saved).origin; }
   catch { return current !== saved; }
 }
 
-export function Providers({ form, snapshot, change, keys, changeKey, deleteKey, run, dirty }: ProvidersProps) {
-  return <>
-    {(['asr', 'cleanup'] as const).map(provider => {
-      const speech = provider === 'asr';
-      const saved = snapshot.settings[provider];
-      const settings = form[provider];
-      const changed = endpointChanged(settings.baseUrl, saved.baseUrl) || (speech && form.asr.kind !== snapshot.settings.asr.kind);
-      return <section className="settings-group" key={provider}>
-        <h2>{speech ? '语音识别' : '文字整理'}</h2>
-        <p className="muted">{speech ? form.asr.kind === 'mimo' ? '小米 MiMo' : 'OpenAI 兼容转写' : '用于润色与翻译；润色程度在「文字整理」中选择。'}</p>
-        {!speech && <Field label="模型"><input value={settings.model} onChange={event => change(provider, { model: event.target.value })} placeholder="服务商提供的模型名称" /></Field>}
-        <Field label="API 密钥" hint={changed && saved.hasApiKey ? '服务地址或协议已更改，请重新输入密钥。' : saved.hasApiKey ? '已保存；留空保留原密钥。' : '尚未配置；密钥不会回显。'}><input type="password" autoComplete="new-password" value={keys[provider]} onChange={event => changeKey(provider, event.target.value)} placeholder={saved.hasApiKey ? '输入新密钥以更新' : '输入 API 密钥'} /></Field>
-        <div className="provider-actions row-actions"><button disabled={dirty} onClick={() => { void run({ type: 'provider.test', provider }); }}>测试连接</button>{saved.hasApiKey && <button className="text-button danger-quiet" onClick={() => { void deleteKey(provider); }}>删除已保存密钥</button>}</div>
-        <details className="settings-details"><summary>{speech ? '语音服务设置' : '文字服务地址'}</summary>
-          {speech && <Field label="服务协议"><select value={form.asr.kind} onChange={event => change('asr', { kind: event.target.value as 'mimo' | 'openai' })}><option value="mimo">小米 MiMo</option><option value="openai">OpenAI 兼容转写</option></select></Field>}
-          <Field label={speech ? '服务地址' : '服务地址 · OpenAI 兼容'}><input type="url" value={settings.baseUrl} onChange={event => change(provider, { baseUrl: event.target.value })} placeholder="https://api.example.com/v1" /></Field>
-          {speech && <Field label="模型"><input value={settings.model} onChange={event => change(provider, { model: event.target.value })} placeholder="服务商提供的模型名称" /></Field>}
-        </details>
-      </section>;
-    })}
-    {dirty && <p className="muted">保存设置后可测试连接。</p>}
-    <details className="settings-details"><summary>数据与服务说明</summary><p className="muted">音频发送至语音服务，需要润色或翻译时，文字发送至文字服务。两项服务分别配置密钥；服务商的数据政策独立适用。</p></details>
-  </>;
+function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { provider: Provider }) {
+  const speech = provider === 'asr';
+  const saved = snapshot.settings[provider];
+  const savedKind = speech ? snapshot.settings.asr.kind : 'openai';
+  const [draft, setDraft] = useState<ProviderDraft>({ baseUrl: saved.baseUrl, model: saved.model, kind: savedKind });
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const edited = useRef(false);
+  useEffect(() => {
+    if (!edited.current) setDraft({ baseUrl: saved.baseUrl, model: saved.model, kind: savedKind });
+  }, [saved.baseUrl, saved.model, savedKind]);
+  const cleanKey = key.trim();
+  const changed = draft.baseUrl !== saved.baseUrl || draft.model !== saved.model || draft.kind !== savedKind || Boolean(cleanKey);
+  const originChanged = endpointChanged(draft.baseUrl, saved.baseUrl) || draft.kind !== savedKind;
+  function change(patch: Partial<ProviderDraft>) { edited.current = true; setDraft(previous => ({ ...previous, ...patch })); setError(''); }
+  async function save() {
+    setBusy(true); setError('');
+    const settings = { baseUrl: draft.baseUrl, model: draft.model, ...(speech ? { kind: draft.kind } : {}) };
+    try {
+      const ok = await run({ type: 'settings.save', patch: { [provider]: settings }, ...(cleanKey ? { secrets: { [provider]: cleanKey } } : {}) });
+      if (ok) { edited.current = false; setKey(''); }
+      else setError('保存失败，请检查服务配置后重试。');
+    } catch { setError('保存失败，请重试。'); }
+    finally { setBusy(false); }
+  }
+  async function deleteKey() {
+    setBusy(true); setError('');
+    try {
+      if (await run({ type: 'settings.save', patch: {}, secrets: { [provider]: '' } })) setKey('');
+      else setError('删除失败，请重试。');
+    } catch { setError('删除失败，请重试。'); }
+    finally { setBusy(false); }
+  }
+  return <form className="provider-panel" onSubmit={event => { event.preventDefault(); void save(); }}>
+    <h2>{speech ? '语音识别' : '文字润色'}</h2>
+    <fieldset className="settings-body" disabled={busy}>
+      {speech && <Field label="语音协议"><select value={draft.kind} onChange={event => change({ kind: event.target.value as ProviderDraft['kind'] })}><option value="mimo">小米 MiMo</option><option value="openai">OpenAI 兼容</option></select></Field>}
+      <Field label={speech ? '语音服务地址' : '润色服务地址'}><input type="url" required value={draft.baseUrl} onChange={event => change({ baseUrl: event.target.value })} placeholder="https://api.example.com/v1" /></Field>
+      <Field label={speech ? '语音模型' : '润色模型'}><input value={draft.model} onChange={event => change({ model: event.target.value })} placeholder="模型名称" /></Field>
+      <Field label={speech ? '语音 API 密钥' : '润色 API 密钥'} hint={originChanged && saved.hasApiKey ? '地址或协议已变更，请重新输入密钥。' : saved.hasApiKey ? '已保存；留空保留。' : '密钥仅保存在本机，不会回显。'}><input type="password" autoComplete="new-password" value={key} onChange={event => { setKey(event.target.value); edited.current = true; setError(''); }} placeholder={saved.hasApiKey ? '输入新密钥以更新' : '输入 API 密钥'} /></Field>
+      <div className="row-actions"><button className="primary" type="submit" disabled={!changed}>{busy ? '保存中…' : '保存'}</button>{saved.hasApiKey && <button className="text-button" type="button" onClick={() => { void deleteKey(); }}>删除密钥</button>}</div>
+    </fieldset>
+    {error && <p className="error-text" role="alert">{error}</p>}
+  </form>;
+}
+
+export function Providers(props: SettingsSectionProps) {
+  return <><div className="provider-grid"><ProviderForm {...props} provider="asr" /><ProviderForm {...props} provider="cleanup" /></div><p className="muted">音频发送至语音服务；开启润色后，文字发送至润色服务。</p></>;
 }

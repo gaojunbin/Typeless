@@ -5,12 +5,6 @@ import type { SessionStatus } from '../shared/contracts';
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
-export function Toggle({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange: (value: boolean) => void; hint?: string }) {
-  return <label className="toggle-row"><span>{label}{hint && <small>{hint}</small>}</span><input type="checkbox" role="switch" checked={checked} onChange={event => onChange(event.target.checked)} /></label>;
-}
-export function Empty({ title, text }: { title: string; text: string }) {
-  return <div className="empty"><h3>{title}</h3><p>{text}</p></div>;
-}
 export function Busy() { return <LoaderCircle size={16} className="spin" aria-hidden="true" />; }
 export function Wave({ level, active }: { level: number; active: boolean }) {
   const amplitude = Math.max(0, Math.min(1, level));

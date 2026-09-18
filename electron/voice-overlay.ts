@@ -33,7 +33,7 @@ export class VoiceOverlay {
     }
     const active = ['recording', 'transcribing', 'polishing', 'inserting'].includes(session.status);
     const recovery = session.status === 'error' || (session.status === 'ready' && !session.copied && Boolean(session.text));
-    if (session.practice || (!active && !recovery)) { this.hide(); return; }
+    if (!active && !recovery) { this.hide(); return; }
     if (recovery) {
       const key = [session.id, session.status, session.errorCode, session.error, session.warning].join('|');
       if (this.dismissedKey === key) return;

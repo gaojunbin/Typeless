@@ -1,4 +1,4 @@
-import type { AppSettings, DictationMode, DictionaryEntry, MemoryEntry, AppProfile } from '../shared/contracts';
+import type { AppSettings } from '../shared/contracts';
 import { endpointBase } from './store';
 import { cleanupMessages } from './cleanup-prompt';
 export { cleanupMessages } from './cleanup-prompt';
@@ -80,22 +80,16 @@ export class Providers {
     if (!data.text.trim()) throw new ProviderError('No speech was recognized.');
     return data.text.trim();
   }
-  async cleanup(settings: AppSettings, key: string, transcript: string, mode: DictationMode, context: { targetApp: string; dictionary: DictionaryEntry[]; memories: MemoryEntry[]; profiles: AppProfile[] }, signal: AbortSignal) {
-    if (!settings.cleanup.enabled && mode === 'dictate') return { text: transcript, warning: undefined };
-    if (!key || !settings.cleanup.model.trim()) return { text: transcript, warning: mode === 'translate' ? 'Translation is unavailable. Configure the translation model and API key; this is the original transcript.' : 'Text cleanup is not configured. Original transcript is ready.' };
-    const messages = cleanupMessages(settings, transcript, mode, context);
+  async cleanup(settings: AppSettings, key: string, transcript: string, signal: AbortSignal) {
+    if (!settings.cleanup.enabled) return { text: transcript, warning: undefined };
+    if (!key || !settings.cleanup.model.trim()) return { text: transcript, warning: 'Text cleanup is not configured. Original transcript is ready.' };
+    const messages = cleanupMessages(settings, transcript);
     const data = await this.request(endpoint(settings.cleanup.baseUrl, 'chat/completions'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: settings.cleanup.model, messages, stream: false }) }, signal, true);
     const text = completionText(data);
-    const warning = semanticWarning(transcript, text, mode);
+    const warning = semanticWarning(transcript, text);
     return { text, warning };
   }
-  async test(base: string, model: string, key: string, kind: 'mimo' | 'openai', signal: AbortSignal) {
-    if (!key) throw new ProviderError('Enter an API key before testing.');
-    const data = await this.request(endpoint(base, 'models'), { headers: kind === 'mimo' ? { 'api-key': key } : { Authorization: `Bearer ${key}` } }, signal);
-    if (!Array.isArray(data.data)) throw new ProviderError('The endpoint did not return a compatible model list. Inference remains unverified.');
-    const listed = data.data.some((x: any) => x?.id === model);
-    return listed ? 'Connected; the configured model is listed. This does not validate transcription or cleanup quality.' : 'Connected to the model-list endpoint. The configured model was not listed; inference access is unverified.';
-  }
+
 }
 export function completionText(data: any) {
   const choice = data?.choices?.find((x: any) => x?.index === 0) ?? data?.choices?.[0];
@@ -105,10 +99,10 @@ export function completionText(data: any) {
   if (typeof text !== 'string' || !text.trim() || text.length > 50000) throw new ProviderError('The provider returned empty or invalid text.');
   return text.trim();
 }
-function semanticWarning(raw: string, text: string, mode: DictationMode) {
+function semanticWarning(raw: string, text: string) {
   if (/^```/.test(text)) return 'The text provider returned formatting wrappers. Review before insertion.';
   const numbers = (value: string) => [...value.matchAll(/\d+(?:[.,]\d+)*/g)].map(x => x[0]).sort().join('|');
   if (numbers(raw) !== numbers(text)) return 'Numbers changed during text processing. Review before insertion.';
-  if (mode === 'dictate' && text.length > raw.length * 2 + 40) return 'Text processing substantially expanded the transcript. Review before insertion.';
+  if (text.length > raw.length * 2 + 40) return 'Text processing substantially expanded the transcript. Review before insertion.';
   return undefined;
 }

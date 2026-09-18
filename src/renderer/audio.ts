@@ -1,4 +1,4 @@
-import type { CaptureCommand, TypelessBridge } from '../shared/contracts';
+import type { CaptureCommand, CaptureErrorCode, TypelessBridge } from '../shared/contracts';
 
 export function encodeWav(chunks: Float32Array[], inputRate: number): Uint8Array {
   const length = chunks.reduce((n, c) => n + c.length, 0);
@@ -23,6 +23,13 @@ export function encodeWav(chunks: Float32Array[], inputRate: number): Uint8Array
   return bytes;
 }
 
+export function captureFailure(error: unknown): { code: CaptureErrorCode; message: string } {
+  const name = error instanceof Error ? error.name : '';
+  if (['NotAllowedError', 'SecurityError'].includes(name)) return { code: 'microphone_denied', message: 'Microphone access was denied. Check system permissions.' };
+  if (['NotFoundError', 'NotReadableError', 'OverconstrainedError', 'AbortError'].includes(name)) return { code: 'microphone_unavailable', message: 'The microphone is unavailable. Select a connected input device.' };
+  return { code: 'capture_failed', message: 'Audio capture failed. Check the microphone and try again.' };
+}
+
 export function installCapture(bridge: TypelessBridge): () => void {
   let active: { id: string; stream?: MediaStream; context?: AudioContext; processor?: ScriptProcessorNode; source?: MediaStreamAudioSourceNode; timer?: ReturnType<typeof setTimeout>; chunks: Float32Array[]; start: number; rate: number; peak: number; stopping: boolean } | undefined;
   function release() {
@@ -37,7 +44,7 @@ export function installCapture(bridge: TypelessBridge): () => void {
     const current = active;
     if (!cancel) {
       if (!current.context || current.peak < 0.002 || !current.chunks.length) {
-        bridge.reportCapture({ type: 'error', sessionId: id, message: '没有检测到有效语音，请检查麦克风后重试。' });
+        bridge.reportCapture({ type: 'error', sessionId: id, code: 'no_speech', message: 'No speech was detected. Check the microphone and try again.' });
       } else {
         const durationMs = current.chunks.reduce((n, chunk) => n + chunk.length, 0) / current.rate * 1000;
         bridge.reportCapture({ type: 'audio', sessionId: id, audio: encodeWav(current.chunks, current.rate), durationMs, sampleRate: 16000 });
@@ -68,11 +75,11 @@ export function installCapture(bridge: TypelessBridge): () => void {
       await context.resume();
       if (active !== current) return;
       current.start = performance.now();
-      stream.getAudioTracks().forEach(track => { track.onended = () => { if (active === current) { bridge.reportCapture({ type: 'error', sessionId: current.id, message: '麦克风已断开，请重新选择输入设备。' }); release(); } }; });
+      stream.getAudioTracks().forEach(track => { track.onended = () => { if (active === current) { bridge.reportCapture({ type: 'error', sessionId: current.id, code: 'microphone_disconnected', message: 'The microphone disconnected. Select a connected input device.' }); release(); } }; });
       current.timer = setTimeout(() => finish(current.id, false), Math.max(1, command.maxDurationSeconds) * 1000);
       bridge.reportCapture({ type: 'started', sessionId: current.id });
     } catch (error) {
-      if (active === current) { bridge.reportCapture({ type: 'error', sessionId: current.id, message: error instanceof Error ? error.message : '无法访问麦克风。' }); release(); }
+      if (active === current) { bridge.reportCapture({ type: 'error', sessionId: current.id, ...captureFailure(error) }); release(); }
     }
   }
   const unsubscribe = bridge.onCaptureCommand(commandValue => { void command(commandValue); });

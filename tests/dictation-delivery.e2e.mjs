@@ -118,7 +118,7 @@ try {
   mainPage = await until(() => Promise.resolve(app.windows().find(page => page.url().endsWith('#default'))), Boolean, 'Typeless main renderer was not found.');
   await mainPage.waitForFunction(() => Boolean(window.typeless), undefined, { timeout: 10000 });
   await dispatch({ type: 'permissions.refresh' });
-  const configured = await dispatch({ type: 'settings.save', patch: { asr: { kind: 'mimo', baseUrl, model: 'mimo-v2.5-asr' }, cleanup: { enabled: true, baseUrl, model: 'test-cleanup' }, privacy: { historyEnabled: false, memoryEnabled: false }, general: { autoInsert: true } }, secrets: { asr: 'FAKE-DELIVERY-ASR', cleanup: 'FAKE-DELIVERY-TEXT' } });
+  const configured = await dispatch({ type: 'settings.save', patch: { asr: { kind: 'mimo', baseUrl, model: 'mimo-v2.5-asr' }, cleanup: { enabled: true, baseUrl, model: 'test-cleanup' }, general: { autoInsert: true } }, secrets: { asr: 'FAKE-DELIVERY-ASR', cleanup: 'FAKE-DELIVERY-TEXT' } });
   assert.equal(configured.ok, true, configured.message);
   const fixtureHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Disposable delivery target</title></head><body><form id="form"><label>Textarea<textarea id="textarea" rows="5" cols="65">textarea: SELECT :end</textarea></label><label>Editable conversation<div id="editable" contenteditable="true" role="textbox" aria-label="Disposable conversation" style="width:500px;min-height:100px;border:1px solid #aaa">editable: SELECT :end</div></label><button id="neutral" type="button">Non-input focus</button><button type="submit">Synthetic submit</button></form><script>window.submitCount=0;window.enterCount=0;window.inputCounts={textarea:0,editable:0};window.models={};for(const id of ['textarea','editable']){const element=document.getElementById(id);const read=()=>id==='textarea'?element.value:element.textContent;window.models[id]=read();element.addEventListener('input',()=>{window.inputCounts[id]++;window.models[id]=read()})}document.querySelector('form').addEventListener('submit',event=>{event.preventDefault();window.submitCount++});document.addEventListener('keydown',event=>{if(event.key==='Enter')window.enterCount++});</script></body></html>`;
   await writeFile(fixturePath, `const { app, BrowserWindow } = require('electron');\nconst { mkdirSync } = require('node:fs');\nconst profile = ${JSON.stringify(join(dataRoot, 'target-profile'))};\nmkdirSync(profile, { recursive: true });\nfor (const key of ['userData', 'sessionData', 'crashDumps']) app.setPath(key, profile);\napp.setAppLogsPath(profile);\napp.commandLine.appendSwitch('disable-breakpad');\napp.setName('Typeless Delivery Fixture');\napp.whenReady().then(async () => {\n${enableTargetAccessibility ? 'app.setAccessibilitySupportEnabled(true);' : ''}\nconst window = new BrowserWindow({ width: 720, height: 440, show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });\nawait window.loadURL(${JSON.stringify('data:text/html;charset=utf-8,' + encodeURIComponent(fixtureHtml))});\nwindow.show(); window.focus();\n});\napp.on('window-all-closed', () => app.quit());\n`);
@@ -133,7 +133,7 @@ try {
   });
   const overlayPage = await until(() => Promise.resolve(app.windows().find(page => page.url().endsWith('#overlay'))), Boolean, 'Overlay renderer was not found.');
   await overlayPage.emulateMedia({ reducedMotion: 'no-preference' });
-  await mainPage.evaluate(() => { window.__deliveryTrace = []; window.typeless.subscribe(({ session }) => { const last = window.__deliveryTrace.at(-1); if (!last || last.status !== session.status || last.delivery !== session.delivery) window.__deliveryTrace.push({ status: session.status, delivery: session.delivery, practice: session.practice }); }); });
+  await mainPage.evaluate(() => { window.__deliveryTrace = []; window.typeless.subscribe(({ session }) => { const last = window.__deliveryTrace.at(-1); if (!last || last.status !== session.status || last.delivery !== session.delivery) window.__deliveryTrace.push({ status: session.status, delivery: session.delivery }); }); });
   clipboardStaged = true;
   await app.evaluate(async ({ clipboard, ClipboardItem }, expected) => {
     const original = await Promise.all((await clipboard.read()).map(async item => {
@@ -151,6 +151,7 @@ try {
     const originalWrite = clipboard.write.bind(clipboard);
     const owned = new Map();
     let writes = Promise.resolve();
+    globalThis.__deliveryClipboardWriteCount = 0;
     let closing = false;
     let restored = false;
     clipboard.write = items => {
@@ -160,6 +161,7 @@ try {
         const owner = marked ? await (await marked.getType(ownerFormat)).text() : undefined;
         const text = marked ? await (await marked.getType('text/plain')).text() : undefined;
         await originalWrite(items);
+        globalThis.__deliveryClipboardWriteCount++;
         if (owner && text === expected) owned.set(owner, text);
       });
       writes = operation.catch(() => {});
@@ -210,9 +212,15 @@ try {
     assert.equal(recordingWindow.bounds.x, Math.round(workArea.x + (workArea.width - 144) / 2));
     assert.equal(recordingWindow.bounds.y, Math.round(workArea.y + workArea.height - 60 - 8));
     await overlayPage.locator('.voice-pill .wave').waitFor({ state: 'visible' });
-    assert.equal(await overlayPage.locator('.voice-pill button').count(), 0);
+    assert.equal(await overlayPage.locator('.voice-pill button').count(), 2);
     if (field === 'textarea') { screenshots.recording = join(dataRoot, 'recording.png'); await overlayPage.screenshot({ path: screenshots.recording, omitBackground: true }); }
-    assert.equal((await dispatch({ type: 'dictation.toggle' })).ok, true);
+    if (field === 'textarea') {
+      await overlayPage.locator('.voice-pill').hover();
+      screenshots.recordingControls = join(dataRoot, 'recording-controls.png');
+      await overlayPage.screenshot({ path: screenshots.recordingControls, omitBackground: true });
+      await overlayPage.getByRole('button', { name: '完成听写', exact: true }).click();
+      assert.equal(await fixture.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()), true, 'Clicking the completion control stole foreground focus.');
+    } else assert.equal((await dispatch({ type: 'dictation.toggle' })).ok, true);
     await overlayPage.locator('.voice-loading').waitFor({ state: 'visible', timeout: 5000 });
     const animation = await overlayPage.locator('.voice-loading i').first().evaluate(element => ({ name: getComputedStyle(element).animationName, duration: getComputedStyle(element).animationDuration }));
     assert.notEqual(animation.name, 'none'); assert.notEqual(animation.duration, '0s');
@@ -247,12 +255,46 @@ try {
     assert.deepEqual(await targetPage.evaluate(() => ({ submits: window.submitCount, enters: window.enterCount })), { submits: 0, enters: 0 });
     assert.equal(await app.evaluate(() => globalThis.__deliveryMainFocusCount), 0, 'Typeless stole focus during delivery.');
     assert.equal(await fixture.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()), true);
-    checks.push({ field, delivery: completed.session.delivery, actualContentsVerified: true, inputEvents: inputState.events, modelValueVerified: true, clipboardRetained, noSubmit: true, overlayHidden: true, mainFocusCount: 0 });
+    checks.push({ field, finishControl: field === 'textarea' ? 'overlay-button' : 'shortcut-action', delivery: completed.session.delivery, actualContentsVerified: true, inputEvents: inputState.events, modelValueVerified: true, clipboardRetained, noSubmit: true, overlayHidden: true, mainFocusCount: 0 });
   }
+  stage('explicit raw copy never pastes even with automatic paste enabled');
+  const beforeRawCopy = await targetPage.evaluate(() => ({ models: { ...window.models }, counts: { ...window.inputCounts }, submits: window.submitCount, enters: window.enterCount }));
+  const beforeRawSession = (await snapshot()).session;
+  const rawCopyWrites = await app.evaluate(() => globalThis.__deliveryClipboardWriteCount);
+  assert.equal((await dispatch({ type: 'dictation.copy', source: 'raw' })).ok, true);
+  await pause(350);
+  assert.equal(await app.evaluate(() => globalThis.__deliveryClipboardWriteCount), rawCopyWrites + 1);
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), beforeRawSession.rawText);
+  assert.equal((await snapshot()).session.text, beforeRawSession.text);
+  assert.deepEqual(await targetPage.evaluate(() => ({ models: { ...window.models }, counts: { ...window.inputCounts }, submits: window.submitCount, enters: window.enterCount })), beforeRawCopy);
+  checks.push({ action: 'raw-copy-with-auto-paste-enabled', clipboardWrites: 1, editorChanges: 0, resultRetained: true });
+
+  stage('cancel processing from the overlay without copy or paste');
+  const beforeCancelWrites = await app.evaluate(() => globalThis.__deliveryClipboardWriteCount);
+  const beforeCancelEditor = await targetPage.evaluate(() => ({ models: { ...window.models }, counts: { ...window.inputCounts }, submits: window.submitCount, enters: window.enterCount }));
+  assert.equal((await dispatch({ type: 'dictation.toggle' })).ok, true);
+  await until(async () => assertCaptureStarted(await snapshot()), state => state.session.status === 'recording' && state.session.durationMs >= 600 && state.session.level > 0.016, 'Cancellation fixture audio did not start.');
+  const beforeCancelRequests = requests.length;
+  assert.equal((await dispatch({ type: 'dictation.toggle' })).ok, true);
+  await until(() => Promise.resolve(requests.length), count => count > beforeCancelRequests, 'Cancellation fixture did not begin its delayed HTTP request.');
+  await overlayPage.locator('.voice-pill').hover();
+  screenshots.processingControls = join(dataRoot, 'processing-controls.png');
+  await overlayPage.screenshot({ path: screenshots.processingControls, omitBackground: true });
+  await overlayPage.getByRole('button', { name: '取消听写', exact: true }).click();
+  await until(snapshot, state => state.session.status === 'cancelled', 'Overlay cancellation did not reach the session.');
+  await pause(1500);
+  assert.equal((await snapshot()).session.status, 'cancelled');
+  assert.equal(await app.evaluate(() => globalThis.__deliveryClipboardWriteCount), beforeCancelWrites, 'Cancelled processing wrote to the clipboard.');
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), utterance);
+  assert.deepEqual(await targetPage.evaluate(() => ({ models: { ...window.models }, counts: { ...window.inputCounts }, submits: window.submitCount, enters: window.enterCount })), beforeCancelEditor, 'Cancelled processing delivered input to the editor.');
+  assert.equal(requests.length - beforeCancelRequests, 1, 'Cancelled recognition must not request cleanup.');
+  await until(nativeWindows, windows => !windows.find(window => window.url.endsWith('#overlay')).visible, 'Cancelled overlay did not hide.');
+  assert.equal(await fixture.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()), true);
+  assert.equal(await app.evaluate(() => globalThis.__deliveryMainFocusCount), 0);
+  checks.push({ action: 'overlay-processing-cancel', lateResponseFenced: true, clipboardWrites: 0, editorChanges: 0, noSubmit: true, overlayHidden: true, mainFocusCount: 0 });
   screenshots.target = join(dataRoot, 'target-final.png'); await targetPage.screenshot({ path: screenshots.target });
   const trace = await mainPage.evaluate(() => window.__deliveryTrace);
   assert.ok(trace.some(event => event.status === 'inserting' && event.delivery === 'pending'));
-  assert.ok(trace.every(event => event.practice === false));
   receipt = { ok: true, status: 'passed', checks, screenshots, clipboardDiagnostics, requests, explicitTargetAccessibility: enableTargetAccessibility, dataRoot, limitations: 'Native system paste and editor contents are real. No-input recording and retained clipboard output are checked separately. Audio, providers and credential encryption are simulated; physical Fn, a real microphone, live ASR, other editors and OS versions remain unverified.' };
 } catch (error) {
   receipt = { ok: false, status: error instanceof Blocked ? 'blocked' : 'failed', stage: currentStage, error: error instanceof Error ? error.message : String(error), checks, screenshots, clipboardDiagnostics, requests, explicitTargetAccessibility: enableTargetAccessibility, dataRoot };

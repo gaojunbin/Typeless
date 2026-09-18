@@ -1,21 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import type { AppSettings, CaptureCommand, CaptureEvent, DictationMode, DictationSession, HistoryEntry } from '../shared/contracts';
+import type { AppSettings, CaptureCommand, CaptureEvent, DictationSession } from '../shared/contracts';
 import { Store, bounded } from './store';
-import { Providers } from './providers';
+import { ProviderError, Providers } from './providers';
 export interface SessionHost {
   capture(command: CaptureCommand): void;
-  context(): Promise<{ appName: string }>;
   copy(text: string, signal?: AbortSignal): Promise<void>;
   paste(text: string, signal?: AbortSignal): Promise<{ ok: boolean; status?: string; message?: string; code?: string }>;
   changed(session: DictationSession): void;
 }
-export const idleSession = (): DictationSession => ({ id: '', status: 'idle', mode: 'dictate', targetApp: '', startedAt: 0, durationMs: 0, level: 0, rawText: '', text: '', inserted: false, delivery: 'none', copied: false, practice: false });
+export const idleSession = (): DictationSession => ({ id: '', status: 'idle', startedAt: 0, durationMs: 0, level: 0, rawText: '', text: '', inserted: false, canRetry: false, delivery: 'none', copied: false });
 export class Sessions {
   session = idleSession();
   private abort = new AbortController();
-  private contextReady: Promise<void> = Promise.resolve();
   private audio?: Uint8Array;
-  private practice = false;
   private consumed = false;
   private awaitingAudio = false;
   private expiry?: ReturnType<typeof setTimeout>;
@@ -29,16 +26,18 @@ export class Sessions {
     return { state, asrKey, cleanupKey };
   }
   constructor(private store: Store, private providers: Providers, private host: SessionHost) {}
-  private emit() { this.host.changed(structuredClone(this.session)); }
+  private emit() {
+    this.session.canRetry = ['error', 'ready'].includes(this.session.status) && !this.consumed && Boolean(this.audio || this.session.rawText);
+    this.host.changed(structuredClone(this.session));
+  }
   private active(id: string, generation = this.generation) { return this.session.id === id && generation === this.generation && !this.abort.signal.aborted; }
-  private begin(mode: DictationMode, practice: boolean) {
+  private begin() {
     this.abort.abort(); this.abort = new AbortController(); this.generation++; clearTimeout(this.expiry);
     this.jobContext = this.snapshotContext();
-    this.contextReady = Promise.resolve();
-    this.audio = undefined; this.practice = practice; this.consumed = false; this.awaitingAudio = false;
-    this.session = { ...idleSession(), id: randomUUID(), status: 'arming', mode, practice, startedAt: Date.now() }; this.emit();
+    this.audio = undefined; this.consumed = false; this.awaitingAudio = false;
+    this.session = { ...idleSession(), id: randomUUID(), status: 'arming', startedAt: Date.now() }; this.emit();
   }
-  async toggle(mode: DictationMode = 'dictate', practice = false) {
+  async toggle() {
     if (this.session.status === 'arming') { this.cancel(); return; }
     if (this.session.status === 'recording') {
       if (this.awaitingAudio) return;
@@ -49,21 +48,12 @@ export class Sessions {
     if (['transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('Please wait for processing or cancel the current dictation.');
     const settings = this.store.snapshot().settings;
     if (!settings.asr.hasApiKey || !settings.asr.model.trim()) {
-      this.begin(mode, practice);
+      this.begin();
       const message = 'Configure the speech provider and API key before recording.';
       this.failStart('provider_not_configured', message);
       throw new Error(message);
     }
-    this.begin(mode, practice); const id = this.session.id; const generation = this.generation;
-    if (!practice) {
-      this.contextReady = Promise.resolve().then(() => this.host.context()).then(context => {
-        if (this.active(id, generation) && ['arming', 'recording', 'transcribing'].includes(this.session.status)) {
-          this.session.targetApp = typeof context.appName === 'string' ? context.appName.slice(0, 300) : '';
-          this.emit();
-        }
-      }).catch(() => {});
-    }
-    this.emit();
+    this.begin(); const id = this.session.id;
     this.host.capture({ type: 'start', sessionId: id, deviceId: settings.audio.deviceId, maxDurationSeconds: settings.audio.maxDurationSeconds });
     this.expiry = setTimeout(() => { if (this.active(id) && ['recording', 'arming'].includes(this.session.status)) void this.toggle().catch(() => {}); }, (settings.audio.maxDurationSeconds + 2) * 1000);
   }
@@ -92,7 +82,11 @@ export class Sessions {
     }
     if (event.type === 'error') {
       if (!['arming', 'recording', 'transcribing'].includes(this.session.status)) return;
-      this.session.status = 'error'; this.session.error = bounded(event.message, 1000); this.emit(); return;
+      const message = bounded(event.message, 1000);
+      this.abort.abort(); this.generation++; clearTimeout(this.expiry);
+      this.audio = undefined; this.jobContext = undefined; this.awaitingAudio = false;
+      this.host.capture({ type: 'cancel', sessionId: event.sessionId });
+      this.session.status = 'error'; this.session.level = 0; this.session.errorCode = event.code; this.session.error = message; this.emit(); return;
     }
     if (!['recording', 'transcribing', 'arming'].includes(this.session.status) || this.audio) return;
     if (!(event.audio instanceof Uint8Array) || event.audio.byteLength > 6750000 || !Number.isFinite(event.durationMs) || event.durationMs <= 0 || event.durationMs > 122000) throw new Error('Invalid captured audio.');
@@ -110,16 +104,13 @@ export class Sessions {
         if (!this.active(id, generation)) return;
         this.session.rawText = raw;
       }
-      let contextTimer: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([this.contextReady, new Promise<void>(resolve => { contextTimer = setTimeout(resolve, 150); })]); }
-      finally { clearTimeout(contextTimer); }
       if (!this.active(id, generation)) return;
       this.session.status = 'polishing'; this.session.error = undefined; this.emit();
       let cleaned;
       try {
         const current = this.store.snapshot();
-        const cleanupSettings = { ...state.settings, privacy: current.settings.privacy, cleanup: { ...state.settings.cleanup, enabled: current.settings.cleanup.enabled }, writing: { ...state.settings.writing, strength: current.settings.writing.strength } };
-        cleaned = await this.providers.cleanup(cleanupSettings, cleanupKey, this.session.rawText, this.session.mode, { targetApp: this.session.targetApp, dictionary: current.dictionary, memories: current.memories, profiles: current.profiles }, signal);
+        const cleanupSettings = { ...state.settings, cleanup: { ...state.settings.cleanup, enabled: current.settings.cleanup.enabled }, writing: { ...state.settings.writing, strength: current.settings.writing.strength, instructions: current.settings.writing.instructions } };
+        cleaned = await this.providers.cleanup(cleanupSettings, cleanupKey, this.session.rawText, signal);
       } catch (error) {
         if (!this.active(id, generation)) return;
         cleaned = { text: this.session.rawText, warning: `Text processing failed. Original transcript is ready. ${error instanceof Error ? error.message : ''}` };
@@ -127,11 +118,11 @@ export class Sessions {
       if (!this.active(id, generation)) return;
       this.session.text = cleaned.text; this.session.warning = cleaned.warning;
       this.audio = undefined; this.jobContext = undefined;
-      await this.deliver(state.settings.general.autoInsert && !this.practice);
+      await this.deliver(state.settings.general.autoInsert);
     } catch (error) {
       if (!this.active(id, generation)) return;
-      this.jobContext = undefined; this.session.status = 'error'; this.session.error = error instanceof Error ? error.message : 'Speech recognition failed.'; this.emit();
-      this.expiry = setTimeout(() => { if (this.session.id === id) this.audio = undefined; }, 5 * 60000);
+      this.jobContext = undefined; this.session.status = 'error'; this.session.errorCode = error instanceof ProviderError ? `asr_${error.code}` : 'asr_failed'; this.session.error = error instanceof Error ? error.message : 'Speech recognition failed.'; this.emit();
+      this.expiry = setTimeout(() => { if (this.session.id === id) { this.audio = undefined; this.emit(); } }, 5 * 60000);
     }
   }
   async retry() {
@@ -142,23 +133,12 @@ export class Sessions {
     this.session.warning = undefined; this.session.error = undefined; this.session.errorCode = undefined; this.session.delivery = 'none'; this.session.copied = false;
     this.session.status = this.session.rawText ? 'polishing' : 'transcribing'; this.emit(); await this.process();
   }
-  async processText(text: string, mode: DictationMode = 'dictate') {
-    text = bounded(text, 50000).trim(); if (!text) throw new Error('Enter text to process.');
-    if (['recording', 'arming', 'transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('Finish or cancel dictation first.');
-    this.begin(mode, true); this.session.rawText = text; await this.process();
-  }
-  async useRaw() {
-    if (!this.session.rawText || this.consumed) throw new Error('No original transcript is available.');
-    if (['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('Wait for processing or cancel first.');
-    if (this.abort.signal.aborted) { this.abort = new AbortController(); this.generation++; }
-    this.session.text = this.session.rawText; this.session.warning = 'Original transcript selected.';
-    await this.deliver(this.store.snapshot().settings.general.autoInsert && !this.practice);
-  }
-  async copy() {
-    if (!this.session.text || ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('No finished result is available to copy.');
+  async copy(source: 'result' | 'raw' = 'result') {
+    const text = source === 'raw' ? this.session.rawText : this.session.text || this.session.rawText;
+    if (!text || ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('No finished result is available to copy.');
     if (this.abort.signal.aborted) { this.abort = new AbortController(); this.generation++; }
     const id = this.session.id; const generation = this.generation; const signal = this.abort.signal;
-    await this.writeClipboard(this.session.text, id, generation, signal);
+    await this.writeClipboard(text, id, generation, signal);
     if (!this.active(id, generation)) return;
     this.session.copied = true;
     if (!this.session.inserted) this.session.delivery = 'copied';
@@ -178,7 +158,7 @@ export class Sessions {
       if (!this.active(id, generation)) return;
       this.session.status = 'error'; this.session.delivery = 'failed'; this.session.errorCode = 'clipboard_copy_failed';
       this.session.error = `Could not copy the result to the clipboard. ${error instanceof Error ? error.message : ''}`;
-      this.remember(); this.emit(); return;
+      this.emit(); return;
     }
     if (!this.active(id, generation)) return;
     this.session.copied = true; this.session.delivery = 'copied';
@@ -201,10 +181,6 @@ export class Sessions {
         this.session.warning = [processingWarning, 'The result was copied, but paste could not be confirmed. Check the current app before pasting again.'].filter(Boolean).join(' ');
       }
     }
-    if (this.active(id, generation)) { this.session.status = 'ready'; this.emit(); this.remember(); }
-  }
-  private remember() {
-    const entry: HistoryEntry = { id: this.session.id, createdAt: new Date(this.session.startedAt).toISOString(), rawText: this.session.rawText, text: this.session.text, mode: this.session.mode, targetApp: this.session.targetApp, durationMs: this.session.durationMs, inserted: this.session.inserted, warning: this.session.warning };
-    this.store.addHistory(entry);
+    if (this.active(id, generation)) { this.session.status = 'ready'; this.emit(); }
   }
 }

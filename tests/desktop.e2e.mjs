@@ -1,6 +1,6 @@
 import { _electron as electron, expect } from '@playwright/test';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -20,7 +20,7 @@ const server = createServer(async (request, response) => {
   if (request.url === '/v1/models') { response.end(JSON.stringify({ data: [{ id: 'mimo-v2.5-asr' }, { id: 'test-cleanup' }] })); return; }
   if (request.url !== '/v1/chat/completions') { response.writeHead(404).end('{}'); return; }
   const isAudio = body.model === 'mimo-v2.5-asr';
-  const text = isAudio ? '嗯，下周三下午三点开会。' : body.messages[0].content.includes('Translate to') ? 'Meet next Wednesday at three in the afternoon.' : '下周三下午三点开会。';
+  const text = isAudio ? '嗯，下周三下午三点开会。' : '下周三下午三点开会。';
   const finish = () => { if (!response.destroyed) response.end(JSON.stringify({ id: 'test-request', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: text } }] })); };
   if (slow && isAudio) setTimeout(finish, 1500); else finish();
 });
@@ -70,7 +70,7 @@ async function launch() {
       }));
       return new ClipboardItem(Object.fromEntries(entries.filter(Boolean)));
     }));
-    const syntheticTexts = new Set(['嗯，下周三下午三点开会。', '下周三下午三点开会。', 'Meet next Wednesday at three in the afternoon.']);
+    const syntheticTexts = new Set(['嗯，下周三下午三点开会。', '下周三下午三点开会。']);
     const owned = new Map();
     const originalWrite = clipboard.write.bind(clipboard);
     let writes = Promise.resolve();
@@ -120,7 +120,7 @@ async function launch() {
     page.on('console', message => diagnostics.push(`console: ${message.type()} ${message.text()}`));
     page.on('pageerror', error => diagnostics.push(`pageerror: ${error.message}`));
     await page.waitForFunction(() => Boolean(window.typeless), undefined, { timeout: 15000 });
-    await page.getByRole('navigation', { name: '主导航', exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+    await page.getByRole('tablist', { name: '设置分类', exact: true }).waitFor({ state: 'visible', timeout: 15000 });
     await page.evaluate(() => {
       window.__typelessTrace = [];
       window.typeless.subscribe(value => {
@@ -158,8 +158,8 @@ async function waitStatus(page, status) {
   assert.equal(current?.session.status, status, `Expected ${status}; received ${current?.session.status}: ${current?.session.error || ''}`);
   return current;
 }
-async function record(page, mode = 'dictate') {
-  assert.equal((await dispatch(page, { type: 'dictation.toggle', practice: true, mode })).ok, true);
+async function record(page) {
+  assert.equal((await dispatch(page, { type: 'dictation.toggle' })).ok, true);
   const started = await waitStatus(page, 'recording');
   const deadline = Date.now() + 10000;
   let ready = false;
@@ -176,95 +176,247 @@ async function record(page, mode = 'dictate') {
 
 try {
   let launched = await launch(); app = launched.instance; let page = launched.page;
-  await mkdir(join(root, 'docs', 'screenshots'), { recursive: true });
-  await page.screenshot({ path: join(root, 'docs', 'screenshots', 'desktop-onboarding.png') });
+  await page.getByRole('button', { name: '配置语音', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'AI 配置', exact: true })).toHaveAttribute('aria-selected', 'true');
   stage('missing credentials');
-  const missing = await dispatch(page, { type: 'dictation.toggle', practice: true });
+  const missing = await dispatch(page, { type: 'dictation.toggle' });
   assert.equal(missing.ok, false); assert.match(missing.message, /API key/);
   assert.equal(requests.length, 0);
-  stage('polishing levels through settings UI');
-  const openWriting = async () => {
-    await page.getByRole('button', { name: '设置', exact: true }).click();
-    await page.getByRole('tab', { name: '文字整理', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '保存设置', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('tab').count(), 3);
+  const openTab = name => page.getByRole('tab', { name, exact: true }).click();
+  const waitSettings = async expected => page.waitForFunction(async expected => {
+    const { settings } = await window.typeless.getSnapshot();
+    return Object.entries(expected).every(([group, fields]) => Object.entries(fields).every(([key, value]) => settings[group][key] === value));
+  }, expected);
+  const setLevel = async (value, enabled, strength) => {
+    await openTab('表达风格');
+    await page.getByRole('button', { name: { none: '不润色', light: '轻度润色', strong: '强力润色' }[value], exact: true }).click();
+    await waitSettings({ cleanup: { enabled }, writing: { strength } });
   };
-  const saveLevel = async (value, enabled, strength) => {
-    await page.getByLabel('润色程度').selectOption(value);
-    await page.getByRole('button', { name: '保存设置', exact: true }).click();
-    await page.waitForFunction(async expected => {
-      const { settings } = await window.typeless.getSnapshot();
-      return settings.cleanup.enabled === expected.enabled && settings.writing.strength === expected.strength;
-    }, { enabled, strength });
-    await expect(page.getByRole('button', { name: '保存设置', exact: true })).toBeDisabled();
-  };
-  await openWriting();
-  await saveLevel('none', false, 'balanced');
-  await page.getByRole('button', { name: '语音输入', exact: true }).click();
-  await page.locator('.home-disclosure').filter({ has: page.locator('summary', { hasText: /^文字整理$/ }) }).locator('summary').click();
-  await page.getByLabel('粘贴文字，试试整理效果').fill('嗯，下周三下午三点开会。');
-  const beforeRaw = requests.length;
-  await page.getByRole('button', { name: '复制原文', exact: true }).click();
-  const rawOnly = await waitStatus(page, 'ready');
-  assert.equal(rawOnly.session.text, '嗯，下周三下午三点开会。');
-  assert.equal(rawOnly.session.copied, true);
-  assert.equal(requests.length, beforeRaw, 'No-polish text processing must not call HTTP providers.');
-  await openWriting();
-  await saveLevel('light', true, 'light');
-  await saveLevel('strong', true, 'balanced');
-  await page.screenshot({ path: join(root, 'docs', 'screenshots', 'writing-settings.png') });
-  await page.getByRole('tab', { name: '声音与快捷键', exact: true }).click();
-  await page.getByText(/^主要快捷键：/).waitFor();
-  await page.getByText(/^备用快捷键：/).waitFor();
-  await page.screenshot({ path: join(root, 'docs', 'screenshots', 'shortcut-settings.png') });
-  await page.getByRole('button', { name: '语音输入', exact: true }).click();
-  stage('save provider settings');
-  const saved = await dispatch(page, { type: 'settings.save', patch: {
-    asr: { kind: 'mimo', baseUrl, model: 'mimo-v2.5-asr' }, cleanup: { enabled: true, baseUrl, model: 'test-cleanup' },
-    privacy: { historyEnabled: true, retentionDays: 1, memoryEnabled: true }, general: { onboardingComplete: true, autoInsert: false },
-  }, secrets: { asr: 'FAKE-ASR-KEY', cleanup: 'FAKE-TEXT-KEY' } });
-  assert.equal(saved.ok, true, saved.message);
+  stage('automatic writing and basic preferences');
+  await setLevel('none', false, 'balanced');
+  await setLevel('light', true, 'light');
+  await setLevel('strong', true, 'balanced');
+  stage('queued instruction saves preserve the latest A-B-A draft');
+  await app.evaluate(({ ipcMain }) => {
+    const channel = 'typeless:action';
+    const original = ipcMain._invokeHandlers.get(channel);
+    if (typeof original !== 'function') throw new Error('Action IPC handler is unavailable for the test delay.');
+    const gates = [];
+    const received = [];
+    globalThis.__instructionSaveDelay = { gates, received };
+    ipcMain.removeHandler(channel);
+    ipcMain.handle(channel, async (event, action) => {
+      if (action.type === 'settings.save' && typeof action.patch?.writing?.instructions === 'string') {
+        received.push(action.patch.writing.instructions);
+        await new Promise(resolve => gates.push(resolve));
+      }
+      return original(event, action);
+    });
+    globalThis.__restoreInstructionHandler = () => {
+      ipcMain.removeHandler(channel); ipcMain.handle(channel, original);
+      for (const release of gates.splice(0)) release();
+    };
+  });
+  try {
+    const field = page.getByLabel(/^个人表达说明/);
+    const first = 'Synthetic instruction A';
+    const second = 'Synthetic instruction B';
+    for (const value of [first, second, first]) {
+      await field.fill(value);
+      await field.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+    }
+    for (const [index, value] of [first, second, first].entries()) {
+      await expect.poll(() => app.evaluate(() => globalThis.__instructionSaveDelay.received.length)).toBe(index + 1);
+      await expect(field).toHaveValue(first);
+      await app.evaluate(() => globalThis.__instructionSaveDelay.gates.shift()());
+      await waitSettings({ writing: { instructions: value } });
+      // In particular, publishing B must not replace the newer A still in the field.
+      await expect(field).toHaveValue(first);
+    }
+    await expect(page.locator('.save-status')).toHaveCount(0);
+    assert.deepEqual(await app.evaluate(() => globalThis.__instructionSaveDelay.received), [first, second, first]);
+    assert.equal((await snapshot(page)).settings.writing.instructions, first);
+  } finally {
+    await app.evaluate(() => globalThis.__restoreInstructionHandler?.());
+  }
+  const instructions = 'Keep English technical terms and use concise sentences.';
+  await page.getByLabel(/^个人表达说明/).fill(instructions);
+  await openTab('基本设置');
+  await waitSettings({ writing: { instructions } });
+  await page.getByRole('switch', { name: '完成后自动粘贴', exact: true }).uncheck();
+  await waitSettings({ general: { autoInsert: false } });
+  await page.getByLabel(/^主要快捷键/).selectOption('Disabled');
+  await waitSettings({ shortcut: { primary: 'Disabled' } });
+  await page.getByLabel(/^备用快捷键/).selectOption('CommandOrControl+Shift+D');
+  await waitSettings({ shortcut: { fallback: 'CommandOrControl+Shift+D' } });
+  assert.equal(await page.getByLabel(/^备用快捷键/).locator('option:checked').innerText().then(text => text.includes('CommandOrControl')), false);
+  await page.getByLabel(/^备用快捷键/).selectOption('CommandOrControl+Shift+Space');
+  await waitSettings({ shortcut: { fallback: 'CommandOrControl+Shift+Space' } });
+  assert.equal(await page.getByLabel(/^备用快捷键/).locator('option:checked').innerText().then(text => text.includes('CommandOrControl')), false);
+
+  await page.screenshot({ path: join(dataRoot, 'basic-settings.png') });
+
+  stage('atomic provider forms');
+  await openTab('AI 配置');
+  const provider = name => page.locator('form.provider-panel').filter({ has: page.getByRole('heading', { name, exact: true }) });
+  const speech = provider('语音识别');
+  const cleanup = provider('文字润色');
+  const beforeProvider = (await snapshot(page)).settings;
+  await speech.getByLabel(/^语音服务地址/).fill(baseUrl);
+  await speech.getByLabel(/^语音模型/).fill('mimo-v2.5-asr');
+  await speech.getByLabel(/^语音 API 密钥/).fill('FAKE-ASR-KEY');
+  await openTab('基本设置');
+  await openTab('AI 配置');
+  await expect(speech.getByLabel(/^语音服务地址/)).toHaveValue(baseUrl);
+  await expect(speech.getByLabel(/^语音 API 密钥/)).toHaveValue('FAKE-ASR-KEY');
+  assert.deepEqual((await snapshot(page)).settings.asr, beforeProvider.asr, 'Provider edits must remain a draft until atomic save.');
+  await speech.getByRole('button', { name: '保存', exact: true }).click();
+  await waitSettings({ asr: { baseUrl, model: 'mimo-v2.5-asr', hasApiKey: true } });
+  await expect(speech.getByLabel(/^语音 API 密钥/)).toHaveValue('');
+  assert.deepEqual((await snapshot(page)).settings.cleanup, beforeProvider.cleanup, 'Saving one provider must not mutate the other provider.');
+  await cleanup.getByLabel(/^润色服务地址/).fill(baseUrl);
+  await cleanup.getByLabel(/^润色模型/).fill('test-cleanup');
+  await cleanup.getByLabel(/^润色 API 密钥/).fill('FAKE-TEXT-KEY');
+  await cleanup.getByRole('button', { name: '保存', exact: true }).click();
+  await waitSettings({ cleanup: { baseUrl, model: 'test-cleanup', hasApiKey: true } });
+  await expect(cleanup.getByLabel(/^润色 API 密钥/)).toHaveValue('');
   assert.equal(JSON.stringify(await snapshot(page)).includes('FAKE-'), false);
-  assert.equal((await dispatch(page, { type: 'provider.test', provider: 'asr' })).ok, true);
-  await dispatch(page, { type: 'dictionary.save', entry: { id: 'global-term', term: 'MiMo', replacement: 'MiMo', description: 'brand', scope: '*' } });
-  await dispatch(page, { type: 'dictionary.save', entry: { id: 'other-term', term: 'SCOPED-SECRET', replacement: '', description: '', scope: 'OtherApp' } });
-  await dispatch(page, { type: 'memory.save', entry: { id: 'global-memory', content: 'Use concise phrasing.', scope: '*', enabled: true, source: 'manual', createdAt: '' } });
-  await dispatch(page, { type: 'memory.save', entry: { id: 'disabled-memory', content: 'DISABLED-SECRET', scope: '*', enabled: false, source: 'manual', createdAt: '' } });
-  stage('fake microphone dictation');
+  await page.screenshot({ path: join(dataRoot, 'ai-settings.png') });
+
+  stage('failed save retains provider state and draft');
+  // A deterministic secure-storage failure exercises the real save IPC error path.
+  await app.evaluate(({ safeStorage }) => {
+    globalThis.__testEncrypt = safeStorage.encryptString;
+    safeStorage.encryptString = () => { throw new Error('Synthetic credential storage failure'); };
+  });
+  const beforeFailedSave = (await snapshot(page)).settings.asr;
+  await speech.getByLabel(/^语音模型/).fill('unsaved-model');
+  await speech.getByLabel(/^语音 API 密钥/).fill('FAKE-FAILED-KEY');
+  await speech.getByRole('button', { name: '保存', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: /保存|failure|失败/ }).first().waitFor();
+  assert.deepEqual((await snapshot(page)).settings.asr, beforeFailedSave, 'Failed save must not publish the draft.');
+  await expect(speech.getByLabel(/^语音模型/)).toHaveValue('unsaved-model');
+  await app.evaluate(({ safeStorage }) => { safeStorage.encryptString = globalThis.__testEncrypt; });
+  await speech.getByLabel(/^语音模型/).fill('mimo-v2.5-asr');
+  await speech.getByLabel(/^语音 API 密钥/).fill('FAKE-ASR-KEY');
+  await speech.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(speech.getByLabel(/^语音 API 密钥/)).toHaveValue('');
+
+  stage('whitespace key preserves the existing credential');
+  await speech.getByLabel(/^语音模型/).fill('synthetic-unsent-model');
+  await speech.getByLabel(/^语音 API 密钥/).fill('   ');
+  await speech.getByRole('button', { name: '保存', exact: true }).click();
+  await waitSettings({ asr: { model: 'synthetic-unsent-model', hasApiKey: true } });
+  await expect(speech.getByLabel(/^语音 API 密钥/)).toHaveValue('');
+  await speech.getByLabel(/^语音模型/).fill('mimo-v2.5-asr');
+  await speech.getByRole('button', { name: '保存', exact: true }).click();
+  await waitSettings({ asr: { model: 'mimo-v2.5-asr', hasApiKey: true } });
+  // No replacement key is supplied again: later HTTP and restart checks prove retention.
+
+  stage('unpolished microphone output skips cleanup HTTP');
+  await setLevel('none', false, 'balanced');
+  await expect(page.locator('.writing-inactive')).toContainText('开启润色后生效，说明会保留。');
+  await page.screenshot({ path: join(dataRoot, 'writing-none.png') });
+  await expect(page.getByLabel(/^个人表达说明/)).toHaveValue(instructions);
+  assert.equal((await snapshot(page)).settings.writing.instructions, instructions);
+  const beforeRaw = requests.length;
   await record(page);
   let current = await waitStatus(page, 'ready');
-  assert.equal(current.session.rawText, '嗯，下周三下午三点开会。'); assert.equal(current.session.text, '下周三下午三点开会。');
-  assert.equal(current.history.length, 1); assert.equal(current.session.inserted, false);
-  await page.screenshot({ path: join(root, 'docs', 'screenshots', 'desktop-result.png') });
+  assert.equal(current.session.text, '嗯，下周三下午三点开会。');
+  assert.equal(current.session.copied, true);
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), current.session.text);
+  assert.equal(requests.length - beforeRaw, 1, 'Unpolished dictation must make only one ASR request.');
+  assert.equal(requests.at(-1).body.model, 'mimo-v2.5-asr');
+
+  stage('polished microphone output uses selected provider');
+  await setLevel('strong', true, 'balanced');
+  await record(page); current = await waitStatus(page, 'ready');
+  assert.equal(current.session.rawText, '嗯，下周三下午三点开会。');
+  assert.equal(current.session.text, '下周三下午三点开会。');
+  assert.equal(current.session.copied, true); assert.equal(current.session.inserted, false);
   const asr = requests.find(item => item.body?.model === 'mimo-v2.5-asr');
-  assert.equal(asr.headers['api-key'], 'FAKE-ASR-KEY'); assert.match(asr.body.messages[0].content[0].input_audio.data, /^data:audio\/wav;base64,UklGR/);
+  assert.equal(asr.headers['api-key'], 'FAKE-ASR-KEY');
+  assert.match(asr.body.messages[0].content[0].input_audio.data, /^data:audio\/wav;base64,UklGR/);
   const polish = requests.find(item => item.body?.model === 'test-cleanup');
   assert.equal(polish.headers.authorization, 'Bearer FAKE-TEXT-KEY');
-  assert.ok(JSON.stringify(polish.body).includes('MiMo')); assert.ok(JSON.stringify(polish.body).includes('Use concise phrasing.'));
-  assert.ok(!JSON.stringify(polish.body).includes('SCOPED-SECRET')); assert.ok(!JSON.stringify(polish.body).includes('DISABLED-SECRET'));
-  stage('translation');
-  await record(page, 'translate'); current = await waitStatus(page, 'ready');
-  assert.match(current.session.text, /^Meet next Wednesday/); assert.equal(current.history.length, 2);
-  stage('cancellation');
+  await page.screenshot({ path: join(dataRoot, 'writing-result.png') });
+  stage('raw result copy does not replace the polished result');
+  const resultBeforeCopy = (await snapshot(page)).session;
+  await page.getByRole('group', { name: '听写结果视图', exact: true }).getByRole('button', { name: '原文', exact: true }).click();
+  await expect(page.locator('.result-text')).toHaveText(resultBeforeCopy.rawText);
+  await page.screenshot({ path: join(dataRoot, 'result-raw.png') });
+  await page.getByRole('button', { name: '复制本次听写', exact: true }).click();
+  await expect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), resultBeforeCopy.rawText);
+  const afterRawCopy = (await snapshot(page)).session;
+  assert.equal(afterRawCopy.text, resultBeforeCopy.text); assert.equal(afterRawCopy.rawText, resultBeforeCopy.rawText);
+  assert.equal(afterRawCopy.inserted, resultBeforeCopy.inserted);
+  await page.getByRole('group', { name: '听写结果视图', exact: true }).getByRole('button', { name: '整理后', exact: true }).click();
+  await expect(page.locator('.result-text')).toHaveText(resultBeforeCopy.text);
+
+  stage('capture error code gives localized recovery without a false retry');
+  const requestsBeforeCaptureError = requests.length;
+  assert.equal((await dispatch(page, { type: 'dictation.toggle' })).ok, true);
+  const recording = await waitStatus(page, 'recording');
+  await page.evaluate(sessionId => window.typeless.reportCapture({ type: 'error', sessionId, code: 'no_speech', message: 'Synthetic capture contained no speech.' }), recording.session.id);
+  const noSpeech = await waitStatus(page, 'error');
+  assert.equal(noSpeech.session.errorCode, 'no_speech'); assert.equal(noSpeech.session.canRetry, false);
+  const errorOverlay = app.windows().find(candidate => candidate.url().endsWith('#overlay'));
+  assert.ok(errorOverlay, 'Error recovery overlay was not found.');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).hide());
+  await errorOverlay.getByRole('button', { name: '查看听写问题', exact: true }).click();
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).isVisible())).toBe(true);
+  const captureError = page.locator('.dictation-panel [role="alert"]');
+  await expect(captureError).toContainText('未检测到声音');
+  await expect(captureError).not.toContainText('Synthetic');
+  await page.screenshot({ path: join(dataRoot, 'no-speech-recovery.png') });
+  assert.equal(await captureError.getByRole('button', { name: '重试', exact: true }).count(), 0);
+  await captureError.getByRole('button', { name: '基本设置', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '基本设置', exact: true })).toHaveAttribute('aria-selected', 'true');
+  assert.equal(requests.length, requestsBeforeCaptureError);
+
+
+  stage('cancelled late response cannot replace clipboard');
+  const beforeCancelClipboard = await app.evaluate(async ({ clipboard }) => clipboard.readText());
+  const beforeCancel = requests.length;
   slow = true; await record(page); await waitStatus(page, 'transcribing');
-  await dispatch(page, { type: 'dictation.cancel' }); await page.waitForTimeout(1800); current = await snapshot(page);
-  assert.equal(current.session.status, 'cancelled'); assert.equal(current.history.length, 2); slow = false;
-  const dictionary = await dispatch(page, { type: 'dictionary.export' }); assert.match(dictionary.text, /MiMo/);
-  const history = await dispatch(page, { type: 'history.export' }); assert.equal(JSON.parse(history.text).length, 2);
-  await mkdir(join(root, 'docs', 'screenshots'), { recursive: true });
-  await page.screenshot({ path: join(root, 'docs', 'screenshots', 'desktop-home.png') });
+  await dispatch(page, { type: 'dictation.cancel' }); await page.waitForTimeout(1800);
+  current = await snapshot(page); assert.equal(current.session.status, 'cancelled');
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), beforeCancelClipboard);
+  assert.equal(requests.slice(beforeCancel).filter(item => item.body?.model === 'test-cleanup').length, 0);
+  slow = false;
+
   stage('restart persistence');
   await closeInstance(app); app = undefined;
   launched = await launch(); app = launched.instance; page = launched.page;
-  current = await snapshot(page); assert.equal(current.history.length, 2); assert.equal(current.dictionary.length, 2); assert.equal(current.memories.length, 2); assert.equal(current.settings.asr.hasApiKey, true);
+  current = await snapshot(page);
+  assert.equal(current.settings.asr.hasApiKey, true); assert.equal(current.settings.cleanup.hasApiKey, true);
+  assert.equal(current.settings.general.autoInsert, false); assert.equal(current.settings.shortcut.primary, 'Disabled');
   assert.equal(current.settings.cleanup.enabled, true); assert.equal(current.settings.writing.strength, 'balanced');
-  await openWriting();
-  assert.equal(await page.getByLabel('润色程度').inputValue(), 'strong');
-  assert.equal((await dispatch(page, { type: 'provider.test', provider: 'asr' })).ok, true);
-  await dispatch(page, { type: 'settings.save', patch: { asr: { baseUrl: 'http://localhost:9/v1' } } });
-  current = await snapshot(page); assert.equal(current.settings.asr.hasApiKey, false); assert.equal(current.settings.cleanup.hasApiKey, true);
-  await dispatch(page, { type: 'history.clear' }); assert.equal((await snapshot(page)).history.length, 0);
+  assert.equal(current.settings.writing.instructions, instructions);
+  await openTab('表达风格');
+  await expect(page.getByRole('button', { name: '强力润色', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await openTab('基本设置');
+  await expect(page.getByRole('switch', { name: '完成后自动粘贴', exact: true })).not.toBeChecked();
+  await expect(page.getByLabel(/^主要快捷键/)).toHaveValue('Disabled');
+  await openTab('AI 配置');
+  await expect(provider('语音识别').getByLabel(/^语音 API 密钥/)).toHaveValue('');
+  await expect(provider('文字润色').getByLabel(/^润色 API 密钥/)).toHaveValue('');
+  stage('minimum-window layout');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).setSize(720, 620));
+  for (const [name, file] of [['AI 配置', 'ai'], ['基本设置', 'basic'], ['表达风格', 'style']]) {
+    await openTab(name);
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally.`);
+    await page.screenshot({ path: join(dataRoot, `minimum-${file}.png`), fullPage: true });
+  }
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
-  assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY'));
-  console.log(JSON.stringify({ ok: true, checks: ['polishing-levels-ui-persistence', 'no-polish-original-without-http', 'separate-shortcut-status', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'translation', 'cancel-late-response', 'missing-credentials', 'scope-filtering', 'history-export-clear', 'restart-persistence', 'credential-origin-revocation'], providerRequests: requests.length, dataRoot, screenshot: 'docs/screenshots/desktop-home.png', limitations: 'HTTP providers and secure storage are test doubles. No live provider, real microphone or external insertion was tested.' }, null, 2));
+  assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
+  const receipt = { ok: true, checks: ['setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-primary-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-tabs', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio and secure storage are test doubles. No live provider, real microphone or external insertion was tested. Mock output does not establish polishing quality.' };
+  await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
+  console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {
   console.error('[e2e] original failure:', error);
   const debugPage = activeInstance?.windows().find(candidate => candidate.url().endsWith('#default'));

@@ -10,10 +10,9 @@ function fixture() {
 afterEach(() => vi.useRealTimers());
 
 describe('floating dictation feedback', () => {
-  it('waits for microphone readiness and never overlays practice', () => {
+  it('waits for microphone readiness before showing recording feedback', () => {
     const { window, overlay } = fixture();
     overlay.publish({ ...idleSession(), id: 'speech', status: 'arming' });
-    overlay.publish({ ...idleSession(), id: 'practice', status: 'recording', practice: true });
     expect(window.showInactive).not.toHaveBeenCalled();
   });
 
