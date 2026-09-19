@@ -120,7 +120,7 @@ async function launch() {
     page.on('console', message => diagnostics.push(`console: ${message.type()} ${message.text()}`));
     page.on('pageerror', error => diagnostics.push(`pageerror: ${error.message}`));
     await page.waitForFunction(() => Boolean(window.typeless), undefined, { timeout: 15000 });
-    await page.getByRole('tablist', { name: '设置分类', exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+    await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('tablist').waitFor({ state: 'visible', timeout: 15000 });
     await page.evaluate(() => {
       window.__typelessTrace = [];
       window.typeless.subscribe(value => {
@@ -176,6 +176,10 @@ async function record(page) {
 
 try {
   let launched = await launch(); app = launched.instance; let page = launched.page;
+  const openTab = name => page.getByRole('tab', { name, exact: true }).click();
+  stage('unconfigured launch opens AI 配置 and Home offers the setup action');
+  await expect(page.getByRole('tab', { name: 'AI 配置', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await openTab('首页');
   await page.getByRole('button', { name: '配置语音', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'AI 配置', exact: true })).toHaveAttribute('aria-selected', 'true');
   stage('missing credentials');
@@ -183,8 +187,7 @@ try {
   assert.equal(missing.ok, false); assert.match(missing.message, /API key/);
   assert.equal(requests.length, 0);
   assert.equal(await page.getByRole('button', { name: '保存设置', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('tab').count(), 3);
-  const openTab = name => page.getByRole('tab', { name, exact: true }).click();
+  assert.equal(await page.getByRole('tab').count(), 4);
   const waitSettings = async expected => page.waitForFunction(async expected => {
     const { settings } = await window.typeless.getSnapshot();
     return Object.entries(expected).every(([group, fields]) => Object.entries(fields).every(([key, value]) => settings[group][key] === value));
@@ -256,7 +259,7 @@ try {
   await waitSettings({ shortcut: { fallback: 'CommandOrControl+Shift+Space' } });
   assert.equal(await page.getByLabel(/^备用快捷键/).locator('option:checked').innerText().then(text => text.includes('CommandOrControl')), false);
 
-  await page.screenshot({ path: join(dataRoot, 'basic-settings.png') });
+  await page.screenshot({ path: join(dataRoot, 'basic-settings.png'), animations: 'disabled' });
 
   stage('atomic provider forms');
   await openTab('AI 配置');
@@ -283,7 +286,7 @@ try {
   await waitSettings({ cleanup: { baseUrl, model: 'test-cleanup', hasApiKey: true } });
   await expect(cleanup.getByLabel(/^润色 API 密钥/)).toHaveValue('');
   assert.equal(JSON.stringify(await snapshot(page)).includes('FAKE-'), false);
-  await page.screenshot({ path: join(dataRoot, 'ai-settings.png') });
+  await page.screenshot({ path: join(dataRoot, 'ai-settings.png'), animations: 'disabled' });
 
   stage('failed save retains provider state and draft');
   // A deterministic secure-storage failure exercises the real save IPC error path.
@@ -318,7 +321,7 @@ try {
   stage('unpolished microphone output skips cleanup HTTP');
   await setLevel('none', false, 'balanced');
   await expect(page.locator('.writing-inactive')).toContainText('开启润色后生效，说明会保留。');
-  await page.screenshot({ path: join(dataRoot, 'writing-none.png') });
+  await page.screenshot({ path: join(dataRoot, 'writing-none.png'), animations: 'disabled' });
   await expect(page.getByLabel(/^个人表达说明/)).toHaveValue(instructions);
   assert.equal((await snapshot(page)).settings.writing.instructions, instructions);
   const beforeRaw = requests.length;
@@ -341,12 +344,14 @@ try {
   assert.match(asr.body.messages[0].content[0].input_audio.data, /^data:audio\/wav;base64,UklGR/);
   const polish = requests.find(item => item.body?.model === 'test-cleanup');
   assert.equal(polish.headers.authorization, 'Bearer FAKE-TEXT-KEY');
-  await page.screenshot({ path: join(dataRoot, 'writing-result.png') });
+  await openTab('首页');
+  await expect(page.locator('.result-text')).toBeVisible();
+  await page.screenshot({ path: join(dataRoot, 'home-result.png'), animations: 'disabled' });
   stage('raw result copy does not replace the polished result');
   const resultBeforeCopy = (await snapshot(page)).session;
   await page.getByRole('group', { name: '听写结果视图', exact: true }).getByRole('button', { name: '原文', exact: true }).click();
   await expect(page.locator('.result-text')).toHaveText(resultBeforeCopy.rawText);
-  await page.screenshot({ path: join(dataRoot, 'result-raw.png') });
+  await page.screenshot({ path: join(dataRoot, 'result-raw.png'), animations: 'disabled' });
   await page.getByRole('button', { name: '复制本次听写', exact: true }).click();
   await expect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
   assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), resultBeforeCopy.rawText);
@@ -371,7 +376,7 @@ try {
   const captureError = page.locator('.dictation-panel [role="alert"]');
   await expect(captureError).toContainText('未检测到声音');
   await expect(captureError).not.toContainText('Synthetic');
-  await page.screenshot({ path: join(dataRoot, 'no-speech-recovery.png') });
+  await page.screenshot({ path: join(dataRoot, 'no-speech-recovery.png'), animations: 'disabled' });
   assert.equal(await captureError.getByRole('button', { name: '重试', exact: true }).count(), 0);
   await captureError.getByRole('button', { name: '基本设置', exact: true }).click();
   await expect(page.getByRole('tab', { name: '基本设置', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -405,16 +410,16 @@ try {
   await expect(provider('语音识别').getByLabel(/^语音 API 密钥/)).toHaveValue('');
   await expect(provider('文字润色').getByLabel(/^润色 API 密钥/)).toHaveValue('');
   stage('minimum-window layout');
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).setSize(720, 620));
-  for (const [name, file] of [['AI 配置', 'ai'], ['基本设置', 'basic'], ['表达风格', 'style']]) {
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).setSize(880, 600));
+  for (const [name, file] of [['首页', 'home'], ['AI 配置', 'ai'], ['基本设置', 'basic'], ['表达风格', 'style']]) {
     await openTab(name);
     await expect(page.getByRole('tabpanel')).toHaveCount(1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally.`);
-    await page.screenshot({ path: join(dataRoot, `minimum-${file}.png`), fullPage: true });
+    await page.screenshot({ path: join(dataRoot, `minimum-${file}.png`), fullPage: true, animations: 'disabled' });
   }
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-primary-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-tabs', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio and secure storage are test doubles. No live provider, real microphone or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio and secure storage are test doubles. No live provider, real microphone or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

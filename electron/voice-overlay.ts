@@ -8,12 +8,12 @@ interface OverlayWindow {
   isDestroyed(): boolean;
 }
 
-export const voiceWindowSize = { width: 144, height: 60 };
-export const recoveryWindowSize = { width: 320, height: 64 };
+export const voiceWindowSize = { width: 240, height: 76 };
+export const recoveryWindowSize = { width: 400, height: 76 };
 
 export function overlayBounds(area: Rectangle, recovery: boolean): Rectangle {
   const size = recovery ? recoveryWindowSize : voiceWindowSize;
-  return { ...size, x: Math.round(area.x + (area.width - size.width) / 2), y: Math.round(area.y + area.height - size.height - 8) };
+  return { ...size, x: Math.round(area.x + (area.width - size.width) / 2), y: Math.round(area.y + area.height - size.height - 16) };
 }
 
 export class VoiceOverlay {

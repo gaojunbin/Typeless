@@ -206,11 +206,11 @@ try {
     assert.equal(started.ok, true, started.message);
     await until(async () => assertCaptureStarted(await snapshot()), state => state.session.status === 'recording' && state.session.durationMs >= 600 && state.session.level > 0.016, 'Fake audio did not reach recording readiness.');
     const recordingWindow = (await nativeWindows()).find(window => window.url.endsWith('#overlay'));
-    assert.deepEqual({ width: recordingWindow.bounds.width, height: recordingWindow.bounds.height }, { width: 144, height: 60 });
+    assert.deepEqual({ width: recordingWindow.bounds.width, height: recordingWindow.bounds.height }, { width: 240, height: 76 });
     assert.equal(recordingWindow.visible, true); assert.equal(recordingWindow.focusable, false);
     const workArea = await app.evaluate(({ screen }, bounds) => screen.getDisplayMatching(bounds).workArea, recordingWindow.bounds);
-    assert.equal(recordingWindow.bounds.x, Math.round(workArea.x + (workArea.width - 144) / 2));
-    assert.equal(recordingWindow.bounds.y, Math.round(workArea.y + workArea.height - 60 - 8));
+    assert.equal(recordingWindow.bounds.x, Math.round(workArea.x + (workArea.width - 240) / 2));
+    assert.equal(recordingWindow.bounds.y, Math.round(workArea.y + workArea.height - 76 - 16));
     await overlayPage.locator('.voice-pill .wave').waitFor({ state: 'visible' });
     assert.equal(await overlayPage.locator('.voice-pill button').count(), 2);
     if (field === 'textarea') { screenshots.recording = join(dataRoot, 'recording.png'); await overlayPage.screenshot({ path: screenshots.recording, omitBackground: true }); }
@@ -224,6 +224,7 @@ try {
     await overlayPage.locator('.voice-loading').waitFor({ state: 'visible', timeout: 5000 });
     const animation = await overlayPage.locator('.voice-loading i').first().evaluate(element => ({ name: getComputedStyle(element).animationName, duration: getComputedStyle(element).animationDuration }));
     assert.notEqual(animation.name, 'none'); assert.notEqual(animation.duration, '0s');
+    assert.equal(await overlayPage.locator('.voice-pill button').count(), 1, 'Processing keeps only the cancel control.');
     if (field === 'textarea') { screenshots.processing = join(dataRoot, 'processing.png'); await overlayPage.screenshot({ path: screenshots.processing, omitBackground: true }); }
     assert.equal((await nativeWindows()).find(window => window.url.endsWith('#default')).focused, false);
     const completed = await until(snapshot, state => state.session.status === 'ready' || state.session.status === 'error', 'Delivery did not finish.');

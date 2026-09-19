@@ -1,0 +1,128 @@
+/* Floating voice capsule. See docs/UI_DESIGN.md section 8. Measurements normalised to a 48px bar height. */
+
+.voice-pill,
+.voice-recovery {
+  --capsule-h: 48px;
+  --capsule-bg: #1c1a1b;
+  --capsule-cancel: #424242;
+  --capsule-text: #d3d3d3;
+  --capsule-shadow: 0 4px 6px rgba(0, 0, 0, .03), 0 12px 16px rgba(0, 0, 0, .08), 0 1px 12px rgba(128, 128, 128, .12);
+  /* Resting width of the processing pill; the contract keyframes spring around it. */
+  --pill-w: 122px;
+
+  /* Centred in the overlay window without relying on body layout; transform stays free for the appear animation. */
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: var(--capsule-h);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--capsule-bg);
+  box-shadow: var(--capsule-shadow);
+  overflow: hidden;
+}
+
+/* Recording: 6px inset, 36px cancel circle, free space, 57px waveform, free space, 36px confirm circle. */
+.voice-pill {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  width: 165px;
+  padding: 0 6px;
+  transition: width var(--dur-slow) var(--ease);
+  animation: voice-appear 200ms ease-out both;
+}
+
+.voice-pill.counting { grid-template-columns: 36px minmax(0, 1fr) auto 36px; width: 210px; }
+
+.voice-pill.processing {
+  grid-template-columns: 36px auto;
+  gap: 4px;
+  width: var(--pill-w);
+  animation: voice-contract 233ms var(--ease) both;
+}
+
+/* Control circles. Both stay visible at all times; neither may steal focus from the target app. */
+.voice-pill .voice-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.voice-pill .voice-cancel { background: var(--capsule-cancel); color: #ffffff; }
+.voice-pill .voice-cancel:hover:not(:disabled) { background: #4e4e4e; }
+.voice-pill .voice-finish { background: #ffffff; color: var(--capsule-bg); }
+.voice-pill .voice-finish:hover:not(:disabled) { background: #ececec; }
+.voice-pill .voice-control:focus-visible { outline: 2px solid #ffffff; outline-offset: -3px; }
+
+/* Waveform: overrides the base .wave sizing for the capsule. */
+.voice-pill .wave { width: 57px; height: 30px; gap: 3px; margin: 0 auto; }
+.voice-pill .wave i { width: 3px; border-radius: var(--radius-pill); background: #ffffff; }
+
+.voice-pill .voice-timer {
+  padding: 0 6px 0 2px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Processing: a text pill that hugs its label, washed by a travelling light overlay. */
+.voice-loading { display: flex; align-items: center; padding: 0 13px; }
+.voice-label { color: var(--capsule-text); font-size: 15px; font-weight: 500; line-height: 1; white-space: nowrap; }
+
+.voice-loading i {
+  position: absolute;
+  inset: 0 -6px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .12) 45%, rgba(255, 255, 255, .12) 100%);
+  animation: voice-wash 1.6s cubic-bezier(.1, .7, .2, 1) infinite;
+}
+
+/* Recovery: a text capsule that opens the main window. */
+.voice-recovery {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 368px;
+  padding: 0 16px 0 12px;
+  color: #ececec;
+  font-size: var(--fs-body);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+button.voice-recovery:hover:not(:disabled) { background: #2a2829; }
+button.voice-recovery:focus-visible:not(:disabled) { outline: 2px solid #ffffff; outline-offset: -3px; }
+.voice-recovery svg { color: var(--warn); }
+.voice-recovery span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Motion: width is the only dimension that animates; height never changes after appearing. */
+@keyframes voice-appear {
+  from { opacity: 0; transform: scale(.8) translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Spring with a visible undershoot to 83% of the target width, as measured in the official clip. */
+@keyframes voice-contract {
+  0% { width: 165px; }
+  45% { width: calc(var(--pill-w) * .83); }
+  70% { width: calc(var(--pill-w) * .83); }
+  100% { width: var(--pill-w); }
+}
+
+@keyframes voice-wash {
+  0% { transform: translateX(-100%); }
+  75%, 100% { transform: translateX(0); }
+}

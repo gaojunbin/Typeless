@@ -4,12 +4,13 @@ A personal AI dictation application for macOS and Windows. Tap a shortcut, speak
 
 This is an independent implementation, not the commercial Typeless service. Current artifacts, executed checks and remaining acceptance limits belong in [Validation](docs/VALIDATION.md). Research and mock-provider tests do not establish live recognition or polishing quality.
 
-## A small configuration window
+## A two-column window
 
-The main window has a compact recording control and exactly three tabs:
+The main window is a two-column shell. A fixed sidebar carries the application mark, four destinations and a card showing the effective dictation shortcut with its status. The content column scrolls on its own and prints the current version at its lower right.
 
-- **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button.
-- **基本设置:** microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior and permission status.
+- **首页:** the **说话，不打字** hero, the dictation card with its start/stop button, shortcut keycaps, recording waveform, recovery alert and current result, a shortcut card for the primary and fallback bindings, a **配置概览** row of three status cards that open the other destinations, and a side rail with a status summary and a **三步开始** quick start.
+- **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button; the speech connection also selects the **小米 MiMo** or **OpenAI 兼容** protocol.
+- **基本设置:** rows grouped under **快捷键**, **音频**, **通用** and **系统权限**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior and permission status.
 - **表达风格:** **不润色**, **轻度润色**, or **强力润色**, plus optional **个人表达说明**.
 
 Switches, selectors and the polishing level save immediately. Text preferences save on blur or Enter; multiline instructions use blur or Command/Ctrl+Enter. A failed save remains visible and can be retried. There is no global Save action and no second navigation layer for settings. Provider credentials deliberately use an explicit atomic save rather than saving partially edited addresses or keys.
@@ -18,16 +19,16 @@ No polishing copies the original transcript without requesting the text model. P
 
 ## First run and everyday dictation
 
-1. Use the initial configuration action to open **AI 配置** directly. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
+1. With no speech key saved, the application opens on **AI 配置**; from **首页**, the **配置语音** button and the **语音识别** overview card open it too. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
 2. Configure the independent **文字润色** connection using your text provider's base URL, model and key, then save it. Alternatively, select **表达风格 → 不润色** for recognition alone. Do not append `/chat/completions` to a base URL.
-3. In **基本设置**, select a microphone and review permissions. The app button can record and copy even when native shortcut or paste permissions are unavailable.
-4. Click **开始听写**, or use the shortcut from any application. Tap again or click **结束听写** to finish. The bottom-center capsule shows a waveform while recording and an animation while processing, then disappears after copying and the optional paste attempt. Hover over it to cancel, or finish while recording; processing also remains cancellable. Click an error capsule to open recovery.
+3. In **基本设置**, select a microphone and review permissions. The **首页** button can record and copy even when native shortcut or paste permissions are unavailable.
+4. Click **开始听写** on **首页**, or use the shortcut from any application. Tap again, click **结束听写**, or click the capsule's confirm circle to finish. The bottom-center capsule is black and shows a cancel circle, a white waveform and a confirm circle, all visible without hovering; the remaining time joins them for the last ten seconds of the recording cap. Processing replaces the waveform and confirm circle with **思考中** and keeps cancel, then the capsule disappears after copying and the optional paste attempt. Click an error capsule to open recovery.
 
 macOS uses isolated Fn taps; Windows uses isolated Right Alt taps. The default fallback is Command/Ctrl+Shift+Space. Fn hardware behavior is not universal on Windows, and AltGr combinations must remain normal typing. If macOS Fn/Globe also triggers a system action, review its keyboard setting or use the fallback; the app does not change that system assignment.
 
 Recording does not require an editable field, an original target, or a terminal allowlist. Every completed result replaces the clipboard and remains there. **完成后自动粘贴** optionally dispatches Command+V/Ctrl+V to the current foreground application; changing applications changes the destination. A dispatched shortcut is not proof of visible input. With no usable destination, paste the copied result later. The app never presses Enter to send or execute text. Canceling cannot undo an already completed copy or paste.
 
-The current result offers original and edited views. Copying either view only updates the clipboard: it does not run a model, replace the other view, or dispatch another paste. New sessions replace these transient views. Recovery offers relevant configuration links and retry only while the session remains recoverable. The recorder produces mono 16 kHz PCM16 WAV and defaults to a 60-second cap. See the [User guide](docs/USER_GUIDE.md) for permissions, storage and troubleshooting.
+The result card on **首页** offers **整理后** and **原文** views with a copy button. Copying either view only updates the clipboard: it does not run a model, replace the other view, or dispatch another paste. New sessions replace these transient views. The recovery alert above that card offers relevant configuration links and retry only while the session remains recoverable. The recorder produces mono 16 kHz PCM16 WAV and defaults to a 60-second cap. See the [User guide](docs/USER_GUIDE.md) for permissions, storage and troubleshooting.
 
 ## Build and run
 
@@ -57,10 +58,10 @@ Build before desktop tests. `test:desktop` exercises real Electron IPC, configur
 
 ## Packaging
 
-The 0.1.5 build targets are:
+The 2.0.0 build targets are:
 
-- macOS Apple silicon: [Typeless-0.1.5-arm64.dmg](release/Typeless-0.1.5-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
-- Windows x64 portable: [Typeless-0.1.5-win.zip](release/Typeless-0.1.5-win.zip).
+- macOS Apple silicon: [Typeless-2.0.0-arm64.dmg](release/Typeless-2.0.0-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
+- Windows x64 portable: [Typeless-2.0.0-win.zip](release/Typeless-2.0.0-win.zip).
 
 These are output locations, not release or acceptance claims. Consult [Validation](docs/VALIDATION.md) for the artifacts actually built and checked.
 
@@ -87,6 +88,7 @@ Development data defaults to `.local/app/`; installed apps normally use the OS a
 | --- | --- |
 | [Proposal](docs/PROPOSAL.md) | Current scope, architecture and acceptance requirements |
 | [Validation](docs/VALIDATION.md) | Executed checks and remaining limitations |
+| [UI design](docs/UI_DESIGN.md) | Interface specification for the sidebar shell, pages and voice capsule |
 | [Complete Quickstart review](docs/research/quickstart-review.md) | Full official-guide review and scoped interaction decisions |
 | [Dictation and actions research](docs/research/quickstart-dictation-and-actions.md) | Recording, editing and adjacent-action evidence |
 | [Preferences and recovery research](docs/research/quickstart-preferences-and-learning.md) | Personalization, settings and recovery evidence |

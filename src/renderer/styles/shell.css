@@ -1,0 +1,56 @@
+/* Application shell: two-column window, sidebar navigation, scrolling content column. */
+
+.app-shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  display: flex; flex-direction: column; min-height: 0;
+  padding: 16px var(--sidebar-pad) 12px;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sidebar);
+  -webkit-app-region: drag;
+}
+body[data-platform="darwin"] .sidebar { padding-top: 56px; }
+.sidebar button { -webkit-app-region: no-drag; }
+
+.sidebar-brand {
+  display: flex; align-items: center; gap: 8px;
+  height: 32px; padding-left: 10px; margin-bottom: 24px;
+  color: var(--text);
+}
+.sidebar-brand span { font-size: 21px; font-weight: 700; letter-spacing: -.01em; line-height: 1; }
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
+.sidebar .nav-item {
+  justify-content: flex-start; gap: 10px;
+  width: 100%; height: var(--nav-h); padding: 0 10px;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text);
+  font-size: var(--fs-nav); font-weight: 500;
+}
+.sidebar .nav-item svg { color: var(--text-secondary); }
+.sidebar .nav-item:hover:not(.selected) { background: var(--bg-hover); }
+.sidebar .nav-item.selected { background: var(--bg-selected); }
+.sidebar .nav-item.selected svg { color: var(--text); }
+
+.sidebar .sidebar-footer {
+  margin-top: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--bg);
+}
+.sidebar-footer-caption { display: block; color: var(--text-tertiary); font-size: var(--fs-caption); line-height: 1.4; }
+.sidebar-footer-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 8px; margin-top: 8px; min-width: 0; }
+.sidebar-footer-row .keychips { flex-wrap: wrap; row-gap: 4px; }
+
+/* Content column */
+.content { overflow: auto; padding: var(--content-pad-y) var(--content-pad-x); background: var(--bg); }
+.content-inner { display: flex; flex-direction: column; min-height: 100%; width: 100%; max-width: var(--content-max); margin: 0 auto; }
+.page { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; animation: page-enter var(--dur) var(--ease) both; }
+@keyframes page-enter { from { opacity: 0; transform: translateY(4px); } }
+
+.preview-banner { margin-bottom: 16px; color: var(--text-tertiary); font-size: var(--fs-caption); }
+
+/* Voice capsule window: the renderer bundle also serves #overlay. */
+:root:has(body.overlay-body), .overlay-body { background: transparent; }
+.overlay-body { overflow: hidden; }

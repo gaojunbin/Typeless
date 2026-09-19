@@ -1,0 +1,42 @@
+/* 基本设置 and 表达风格 pages. Tokens live in tokens.css, primitives in base.css.
+   Component stylesheets are evaluated before base.css (module order), so every rule that
+   refines a base primitive is anchored on an extra class to outrank it. */
+
+/* Everything stacked under a control: badge, key chips, hint, save status. */
+.setting-row .pref-status { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; }
+.setting-row.stacked .pref-status { align-items: flex-start; }
+.setting-row .pref-status .save-status { margin-top: 0; }
+
+.setting-row .pref-shortcut-status { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+
+/* Switch rows: switch right of the label, save status wrapping onto its own line. */
+.setting-row.pref-switch-row .row-status { flex: 1 0 100%; margin-top: 6px; text-align: right; }
+
+/* Permission rows: badge plus the action that resolves it. */
+.setting-row.pref-permission-row .row-control.inline { gap: 10px; }
+
+/* Rows whose only label is the group header above them; the label stays for assistive tech. */
+.setting-row.pref-untitled .row-text {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.setting-row.stacked.pref-untitled .row-control { margin-top: 0; }
+
+.setting-row .pref-hint { max-width: 620px; color: var(--text-secondary); }
+
+.setting-row.writing-level .row-control { align-items: flex-start; }
+.setting-row.writing-level .pref-hint { margin-top: 12px; }
+
+.setting-row.writing-instructions textarea { max-width: 640px; }
+
+.group.writing-inactive .row-label,
+.group.writing-inactive .pref-hint,
+.group.writing-inactive textarea { color: var(--text-secondary); }
+
+/* Mirrors the setting-row stacking breakpoint in base.css. */
+@media (max-width: 900px) {
+  .setting-row .pref-status { align-items: flex-start; }
+  .setting-row .pref-shortcut-status { justify-content: flex-start; }
+  .setting-row.pref-switch-row .row-control.inline { justify-content: flex-start; }
+  .setting-row.pref-switch-row .row-status { text-align: left; }
+}

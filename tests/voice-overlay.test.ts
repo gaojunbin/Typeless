@@ -25,8 +25,8 @@ describe('floating dictation feedback', () => {
     workArea.mockReturnValue({ x: 0, y: 0, width: 1440, height: 900 });
     overlay.publish({ ...session, status: 'inserting', delivery: 'pending' });
     expect(window.setBounds.mock.calls.map(call => call[0])).toEqual([
-      { x: -1032, y: 1012, width: 144, height: 60 },
-      { x: -1032, y: 1012, width: 144, height: 60 },
+      { x: -1080, y: 988, width: 240, height: 76 },
+      { x: -1080, y: 988, width: 240, height: 76 },
     ]);
     overlay.publish({ ...session, status: 'ready', delivery: 'dispatched', inserted: true });
     expect(window.hide).toHaveBeenCalledTimes(2);
@@ -37,7 +37,7 @@ describe('floating dictation feedback', () => {
     const { window, overlay } = fixture();
     const failure = { ...idleSession(), id: 'speech', status: 'error' as const, errorCode: 'permission_required' };
     overlay.publish(failure);
-    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 560, y: 828, width: 320, height: 64 }, false);
+    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 520, y: 808, width: 400, height: 76 }, false);
     vi.advanceTimersByTime(4001);
     overlay.publish(failure);
     expect(window.showInactive).toHaveBeenCalledTimes(1);
@@ -46,7 +46,7 @@ describe('floating dictation feedback', () => {
 
   it('centers compact feedback within display work area coordinates', () => {
     expect(overlayBounds({ x: 100, y: 24, width: 1280, height: 696 }, false))
-      .toEqual({ x: 668, y: 652, width: 144, height: 60 });
+      .toEqual({ x: 620, y: 628, width: 240, height: 76 });
   });
 
   it('hides after copying even when no editor accepts paste', () => {

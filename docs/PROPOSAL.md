@@ -1,12 +1,12 @@
 # Typeless: current product scope and implementation plan
 
-Date: 2026-09-18. Target version: 0.1.5. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
+Date: 2026-09-18. Target version: 2.0.0. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
 
 ## Product direction
 
-Build a small personal AI dictation utility for macOS and Windows: tap, speak, tap again, and receive faithful text on the clipboard with optional paste into the current application. Use a quiet tray/menu-bar presence, a compact non-activating capsule, and one light configuration window. No application account, hosted backend or sync is required.
+Build a small personal AI dictation utility for macOS and Windows: tap, speak, tap again, and receive faithful text on the clipboard with optional paste into the current application. Use a quiet tray/menu-bar presence, a compact non-activating capsule, and one light window that carries both dictation status and configuration. No application account, hosted backend or sync is required.
 
-The window contains one compact recording control, a conditional current result, and exactly three first-level tabs: **AI 配置**, **基本设置**, and **表达风格**. There is no separate Home-to-Settings journey. The latest user decision limits the product to dictation, necessary AI connections, basic preferences and writing style. Additional management surfaces are outside this scope.
+The window is a two-column shell: a sidebar with four destinations, **首页**, **AI 配置**, **基本设置** and **表达风格**, and a content column that renders the selected one. **首页** holds the dictation control, the active shortcuts, the conditional current result with its recovery actions, a configuration overview linking to the other three destinations, and a status summary. The three configuration destinations remain one click away with no second navigation layer. The product stays limited to dictation, necessary AI connections, basic preferences and writing style; additional management surfaces are outside this scope. The visual specification for the shell, its pages and the capsule lives in [UI design](UI_DESIGN.md).
 
 The [complete Quickstart review](research/quickstart-review.md), with [dictation/action evidence](research/quickstart-dictation-and-actions.md) and [preferences/recovery evidence](research/quickstart-preferences-and-learning.md), distinguishes published interface evidence from inference. The earlier [settings study](research/settings-simplification.md) covers only that narrower topic. Official screenshots support flat setting rows and direct controls. They do not establish vendor autosave persistence or a three-level polishing selector. Our three-level control and atomic provider form are explicit project decisions.
 
@@ -14,19 +14,20 @@ The [complete Quickstart review](research/quickstart-review.md), with [dictation
 
 | Surface | Contents | Save behavior |
 | --- | --- | --- |
+| Home | Dictation control, shortcut status, current result with its recovery actions, configuration overview and status summary | No setting is edited here; its cards and buttons navigate to the configuration destinations |
 | AI configuration | Independent speech and polishing provider forms, each with endpoint, model, credential, and speech protocol where needed | One explicit Save per provider submits its fields atomically; failed saves retain the draft and show an error |
 | Basic settings | Microphone, primary/fallback shortcuts, automatic paste, sounds, login startup and permission status | Switches/selectors save immediately; text saves on blur or Enter; failures expose retry |
 | Writing style | Unchanged transcription, light polishing, strong polishing, optional personal instructions | Level saves immediately; multiline instructions save on blur or Command/Ctrl+Enter |
 
 No global Save button is needed. Credentials are an intentional exception to immediate saving: address and key changes must not be sent as separate partially edited configurations. Saved keys never echo into the renderer. An empty key field retains its existing value; explicit deletion removes it. An endpoint-origin or ASR-protocol change invalidates the old credential unless a replacement accompanies it.
 
-Use a white background, near-black text, subtle separators and generous spacing. Prefer direct fields and grouped rows to nested cards, disclosures or decorative summaries. Errors appear next to the relevant action. Normal completion must not open the main window or turn the capsule into a large status panel. The unconfigured primary action opens AI configuration directly; recoverable setup errors link to the relevant settings tab. No setup wizard is added.
+The shell uses a light sidebar, a near-white content background, grouped setting rows with a left label and a right-aligned control, and pill buttons; [UI design](UI_DESIGN.md) is the authoritative specification for its tokens, components and layout. Errors appear next to the relevant action. Normal completion must not open the main window or turn the capsule into a large status panel. The unconfigured primary action opens AI configuration directly; recoverable setup errors link to the relevant configuration destination. No setup wizard is added.
 
 ## Dictation and delivery
 
 macOS uses an isolated Fn tap to start and another to stop. Windows uses isolated Right Alt with chord/AltGr filtering. A configurable Command/Ctrl+Shift+Space fallback and the application recording button remain available when the primary shortcut cannot be used. Universal Windows Fn support is not assumed.
 
-Recording starts anywhere without capturing an original target or classifying the foreground application. No Accessibility-tree lookup, editable-field requirement or terminal gate precedes the microphone. The capsule shows a waveform only after capture starts and a loading animation during processing. It is non-activating and hides after copying and the optional paste attempt. Hover reveals cancel and a finish control while recording; processing exposes cancel. Clicking an error explicitly opens recovery. These controls must preserve the foreground editor during ordinary recording and completion.
+Recording starts anywhere without capturing an original target or classifying the foreground application. No Accessibility-tree lookup, editable-field requirement or terminal gate precedes the microphone. The capsule is a black bar that shows a waveform only after capture starts and a **思考中** label during processing. Its cancel and finish controls are always visible while recording, and cancel stays available during processing; the remaining time appears inside the capsule for the last ten seconds of the recording cap. It is non-activating and hides after copying and the optional paste attempt. Clicking an error capsule explicitly opens recovery. These controls must preserve the foreground editor during ordinary recording and completion.
 
 ```mermaid
 flowchart LR
@@ -78,17 +79,17 @@ The [implementation decision](IMPLEMENTATION_DECISION.md) explains the Electron/
 
 Implementation and validation are separate. Required checks include:
 
-1. Exactly three configuration destinations; no extra navigation step to reach their core controls.
+1. Four sidebar destinations: **首页** plus exactly three configuration destinations; no extra navigation step to reach their core controls.
 2. Immediate level/select/switch saving, text-field commit behavior, failure feedback and restart persistence.
 3. Independent atomic provider saves, retained drafts on failure, no echoed keys, credential-origin binding and no plaintext persistence.
 4. Real capture framing, correct provider routes, unchanged-transcript mode with no cleanup request, and raw fallback on cleanup failure.
 5. Cancellation and late-response fencing, duplicate-stop protection, serialized clipboard ownership and no repeated uncertain paste.
 6. Recording with no input field; external editor input events, retained clipboard, no Enter, no focus theft and correct capsule lifecycle.
 7. Primary/fallback shortcut status independently reported; native unavailable/permission-denied cases remain actionable.
-8. Capsule hover cancel/finish and click-to-recover, specific error routes, clipboard-only original/result copying, and new-session isolation. External-editor tests must establish that hover interaction does not steal the paste destination.
+8. Always-visible capsule cancel/finish and click-to-recover, specific error routes, clipboard-only original/result copying, and new-session isolation. External-editor tests must establish that using the capsule controls does not steal the paste destination.
 
 Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Version 0.1.5 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication, automatic updates or platform-runtime acceptance. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
+Version 2.0.0 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication, automatic updates or platform-runtime acceptance. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
 Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

@@ -1,37 +1,47 @@
-import { useEffect, useState, type ReactNode, type ChangeEvent, type KeyboardEvent } from 'react';
-import { Field } from '../ui';
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Keyboard, Laptop, Mic, PenLine, ShieldCheck, Sparkles } from 'lucide-react';
+import { KeyChips, PageHeader, SectionGroup, Segmented, SettingRow, StatusBadge } from '../ui';
 import { shortcutLabel } from '../shortcutPresentation';
 import { writingLevel, writingLevels, type WritingLevel } from '../writingPresentation';
 import { SaveStatus, useSettingDraft } from './Autosave';
 import type { SettingsSectionProps } from './types';
+import '../styles/preferences.css';
 
 const shortcutStatusMessages: Record<string, string> = {
   helper_unavailable: '助手正在重新连接', input_monitoring_denied: '请授权辅助功能或输入监控',
   tap_disabled: '监听不可用，正在恢复', tap_creation_failed: '监听不可用，正在恢复', runloop_source_failed: '监听不可用，正在恢复',
   binding_mismatch: '快捷键设置尚未生效', ready: '已就绪', disabled: '已关闭',
 };
+const fallbackPresets = ['CommandOrControl+Shift+Space', 'CommandOrControl+Shift+D', 'CommandOrControl+Alt+Space'];
+const groupIcon = { size: 20, strokeWidth: 1.5 } as const;
 
-function Choice({ label, saved, save, children, hint }: { label: string; saved: string; save: (value: string) => Promise<boolean>; children: ReactNode; hint?: string }) {
-  const draft = useSettingDraft(saved, save);
-  return <div className="setting-row"><Field label={label} hint={hint}><select value={draft.value} disabled={draft.status === 'saving'} onChange={event => { draft.edit(event.target.value); void draft.commit(event.target.value); }}>{children}</select></Field><SaveStatus status={draft.status} retry={() => { void draft.commit(); }} /></div>;
-}
-function Switch({ label, saved, save }: { label: string; saved: boolean; save: (value: boolean) => Promise<boolean> }) {
-  const draft = useSettingDraft(saved, save);
-  return <div className="setting-row"><label className="toggle-row"><span>{label}</span><input type="checkbox" role="switch" checked={draft.value} disabled={draft.status === 'saving'} onChange={event => { draft.edit(event.target.checked); void draft.commit(event.target.checked); }} /></label><SaveStatus status={draft.status} retry={() => { void draft.commit(); }} /></div>;
-}
-function TextSetting({ label, saved, save, multiline = false, hint }: { label: string; saved: string; save: (value: string) => Promise<boolean>; multiline?: boolean; hint?: string }) {
-  const draft = useSettingDraft(saved, save);
-  const props = { value: draft.value, onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => draft.edit(event.target.value), onBlur: () => { void draft.commit(); }, onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && (!multiline || event.metaKey || event.ctrlKey)) { event.preventDefault(); void draft.commit(); }
-  } };
-  return <div className="setting-row"><Field label={label} hint={hint}>{multiline ? <textarea {...props} rows={5} placeholder="例如：保留英文技术术语，使用简体中文。" /> : <input {...props} />}</Field><SaveStatus status={draft.status} retry={() => { void draft.commit(); }} /></div>;
+/** Renders nothing while the draft is idle, so `.save-status` only exists during a save or after a failure. */
+function saving(status: 'idle' | 'saving' | 'error', retry: () => void) {
+  return status === 'idle' ? null : <SaveStatus status={status} retry={retry} />;
 }
 
+function SelectRow({ id, label, description, saved, save, status, children }: {
+  id: string; label: string; description?: ReactNode; saved: string; save: (value: string) => Promise<boolean>; status?: ReactNode; children: ReactNode;
+}) {
+  const draft = useSettingDraft(saved, save);
+  const progress = saving(draft.status, () => { void draft.commit(); });
+  return <SettingRow label={label} description={description} htmlFor={id}
+    control={<select id={id} value={draft.value} disabled={draft.status === 'saving'} onChange={event => { draft.edit(event.target.value); void draft.commit(event.target.value); }}>{children}</select>}
+    status={status || progress ? <div className="pref-status">{status}{progress}</div> : undefined} />;
+}
 
-function ShortcutSetting({ saved, save, mac, available }: { saved: string; save: (value: string) => Promise<boolean>; mac: boolean; available: boolean }) {
-  const presets = ['CommandOrControl+Shift+Space', 'CommandOrControl+Shift+D', 'CommandOrControl+Alt+Space'];
-  const choices = presets.includes(saved) ? presets : [saved, ...presets];
-  return <Choice label="备用快捷键" saved={saved} save={save} hint={available ? '已就绪' : '未注册，请选择其他组合键'}>{choices.map(binding => <option key={binding} value={binding}>{shortcutLabel(binding, mac)}</option>)}</Choice>;
+function SwitchRow({ label, description, saved, save }: { label: string; description?: ReactNode; saved: boolean; save: (value: boolean) => Promise<boolean> }) {
+  const draft = useSettingDraft(saved, save);
+  return <SettingRow inline className="pref-switch-row" label={label} description={description}
+    control={<input type="checkbox" role="switch" aria-label={label} checked={draft.value} disabled={draft.status === 'saving'} onChange={event => { draft.edit(event.target.checked); void draft.commit(event.target.checked); }} />}
+    status={saving(draft.status, () => { void draft.commit(); })} />;
+}
+
+function PermissionRow({ label, granted, text, action }: { label: string; granted: boolean; text: string; action?: { label: string; onClick: () => void } }) {
+  return <SettingRow inline className="pref-permission-row" label={label} control={<>
+    <StatusBadge tone={granted ? 'ok' : 'warn'}>{text}</StatusBadge>
+    {action && <button type="button" className="secondary small" onClick={action.onClick}>{action.label}</button>}
+  </>} />;
 }
 
 export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
@@ -43,32 +53,75 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
     return () => { live = false; navigator.mediaDevices.removeEventListener('devicechange', load); };
   }, [snapshot.permissions.microphone]);
   const { settings, permissions, platform } = snapshot;
+  const mac = platform === 'darwin';
   const primary = platform === 'win32' ? 'RightAlt' : 'Fn';
-  const disabled = settings.shortcut.primary.toLowerCase() === 'disabled';
-  const shortcutStatus = disabled ? '已关闭' : permissions.primaryShortcutAvailable ? '已就绪' : shortcutStatusMessages[permissions.shortcutMessage] || '暂不可用';
+  const off = settings.shortcut.primary.toLowerCase() === 'disabled';
+  const primaryText = off ? '已关闭' : permissions.primaryShortcutAvailable ? '已就绪' : shortcutStatusMessages[permissions.shortcutMessage] || '暂不可用';
+  const fallbackChoices = fallbackPresets.includes(settings.shortcut.fallback) ? fallbackPresets : [settings.shortcut.fallback, ...fallbackPresets];
+  const openAccessibility = () => { void run({ type: 'permissions.request', permission: 'accessibility' }); };
   return <>
-    <section className="settings-group">
-      <Choice label="麦克风" saved={settings.audio.deviceId} save={deviceId => run({ type: 'settings.save', patch: { audio: { deviceId } } })}><option value="default">系统默认</option>{devices.filter(device => device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `麦克风 ${index + 1}`}</option>)}</Choice>
-      <Choice label="主要快捷键" saved={disabled ? 'Disabled' : primary} hint={shortcutStatus} save={primary => run({ type: 'settings.save', patch: { shortcut: { primary } } })}><option value={primary}>{primary === 'Fn' ? 'Fn' : 'Right Alt'} · 按一下开始 / 结束</option><option value="Disabled">关闭</option></Choice>
-      <ShortcutSetting saved={settings.shortcut.fallback} mac={platform === 'darwin'} available={permissions.fallbackShortcutAvailable} save={fallback => run({ type: 'settings.save', patch: { shortcut: { fallback } } })} />
-    </section>
-    <section className="settings-group">
-      <Switch label="完成后自动粘贴" saved={settings.general.autoInsert} save={autoInsert => run({ type: 'settings.save', patch: { general: { autoInsert } } })} />
-      <Switch label="录音提示音" saved={settings.audio.interactionSounds} save={interactionSounds => run({ type: 'settings.save', patch: { audio: { interactionSounds } } })} />
-      <Switch label="登录系统时启动" saved={settings.general.launchAtLogin} save={launchAtLogin => run({ type: 'settings.save', patch: { general: { launchAtLogin } } })} />
-    </section>
-    <section className="settings-group permissions-compact" aria-label="系统权限">
-      <div className="permission-row"><span>麦克风 · {permissions.microphone === 'granted' ? '已授权' : '待授权'}</span>{permissions.microphone !== 'granted' && <button className="text-button" onClick={() => { void run({ type: 'permissions.request', permission: 'microphone' }); }}>授权</button>}</div>
-      <div className="permission-row"><span>{platform === 'darwin' ? `辅助功能 · ${permissions.accessibility ? '已授权' : '待授权'}` : `系统输入助手 · ${permissions.nativeAvailable ? '已就绪' : '不可用'}`}</span><button className="text-button" onClick={() => { void run({ type: 'permissions.request', permission: 'accessibility' }); }}>打开系统设置</button></div>
-      {platform === 'darwin' && <div className="permission-row"><span>输入监控 · {permissions.inputMonitoring ? '已授权' : '未单独授权'}</span></div>}
-    </section>
+    <PageHeader title="基本设置" subtitle="快捷键、麦克风、粘贴行为与系统权限。" />
+    <SectionGroup icon={<Keyboard {...groupIcon} />} title="快捷键">
+      <SelectRow id="pref-shortcut-primary" label="主要快捷键" description="按一下开始，再按一下结束。"
+        saved={off ? 'Disabled' : primary} save={value => run({ type: 'settings.save', patch: { shortcut: { primary: value } } })}
+        status={<div className="pref-shortcut-status">
+          <StatusBadge tone={off ? 'muted' : permissions.primaryShortcutAvailable ? 'ok' : 'warn'}>{primaryText}</StatusBadge>
+          {!off && <KeyChips binding={settings.shortcut.primary} mac={mac} />}
+        </div>}>
+        <option value={primary}>{primary === 'Fn' ? 'Fn' : 'Right Alt'} · 按一下开始 / 结束</option>
+        <option value="Disabled">关闭</option>
+      </SelectRow>
+      <SelectRow id="pref-shortcut-fallback" label="备用快捷键"
+        saved={settings.shortcut.fallback} save={value => run({ type: 'settings.save', patch: { shortcut: { fallback: value } } })}
+        status={<StatusBadge tone={permissions.fallbackShortcutAvailable ? 'ok' : 'warn'}>{permissions.fallbackShortcutAvailable ? '已就绪' : '未注册，请选择其他组合键'}</StatusBadge>}>
+        {fallbackChoices.map(binding => <option key={binding} value={binding}>{shortcutLabel(binding, mac)}</option>)}
+      </SelectRow>
+    </SectionGroup>
+    <SectionGroup icon={<Mic {...groupIcon} />} title="音频">
+      <SelectRow id="pref-microphone" label="麦克风" saved={settings.audio.deviceId} save={deviceId => run({ type: 'settings.save', patch: { audio: { deviceId } } })}>
+        <option value="default">系统默认</option>
+        {devices.filter(device => device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `麦克风 ${index + 1}`}</option>)}
+      </SelectRow>
+      <SwitchRow label="录音提示音" saved={settings.audio.interactionSounds} save={interactionSounds => run({ type: 'settings.save', patch: { audio: { interactionSounds } } })} />
+    </SectionGroup>
+    <SectionGroup icon={<Laptop {...groupIcon} />} title="通用">
+      <SwitchRow label="完成后自动粘贴" description="把结果粘贴到当前前台应用，不会按下回车。" saved={settings.general.autoInsert} save={autoInsert => run({ type: 'settings.save', patch: { general: { autoInsert } } })} />
+      <SwitchRow label="登录系统时启动" saved={settings.general.launchAtLogin} save={launchAtLogin => run({ type: 'settings.save', patch: { general: { launchAtLogin } } })} />
+    </SectionGroup>
+    <SectionGroup icon={<ShieldCheck {...groupIcon} />} title="系统权限">
+      <PermissionRow label="麦克风" granted={permissions.microphone === 'granted'} text={permissions.microphone === 'granted' ? '已授权' : '待授权'}
+        action={permissions.microphone === 'granted' ? undefined : { label: '授权', onClick: () => { void run({ type: 'permissions.request', permission: 'microphone' }); } }} />
+      {mac
+        ? <PermissionRow label="辅助功能" granted={permissions.accessibility} text={permissions.accessibility ? '已授权' : '待授权'} action={{ label: '打开系统设置', onClick: openAccessibility }} />
+        : <PermissionRow label="系统输入助手" granted={permissions.nativeAvailable} text={permissions.nativeAvailable ? '已就绪' : '不可用'} action={{ label: '打开系统设置', onClick: openAccessibility }} />}
+      {mac && <PermissionRow label="输入监控" granted={permissions.inputMonitoring} text={permissions.inputMonitoring ? '已授权' : '未单独授权'} />}
+    </SectionGroup>
   </>;
 }
 
 export function WritingSettings({ snapshot, run }: SettingsSectionProps) {
-  const draft = useSettingDraft<WritingLevel>(writingLevel(snapshot.settings), level => run({ type: 'settings.save', patch: { cleanup: { enabled: level !== 'none' }, writing: { strength: level === 'light' ? 'light' : 'balanced' } } }));
+  const level = useSettingDraft<WritingLevel>(writingLevel(snapshot.settings), value => run({ type: 'settings.save', patch: { cleanup: { enabled: value !== 'none' }, writing: { strength: value === 'light' ? 'light' : 'balanced' } } }));
+  const instructions = useSettingDraft(snapshot.settings.writing.instructions, value => run({ type: 'settings.save', patch: { writing: { instructions: value } } }));
+  const inactive = level.value === 'none';
+  const commitInstructions = () => { void instructions.commit(); };
   return <>
-    <section className="settings-group"><h2>润色程度</h2><div className="segmented" role="group" aria-label="润色程度">{writingLevels.map(level => <button key={level.value} aria-pressed={draft.value === level.value} className={draft.value === level.value ? 'selected' : ''} disabled={draft.status === 'saving'} onClick={() => { draft.edit(level.value); void draft.commit(level.value); }}>{level.label}</button>)}</div><p className="muted">{writingLevels.find(level => level.value === draft.value)?.hint}</p><SaveStatus status={draft.status} retry={() => { void draft.commit(); }} /></section>
-    <section className={`settings-group ${draft.value === 'none' ? 'writing-inactive' : ''}`}><TextSetting label="个人表达说明" multiline saved={snapshot.settings.writing.instructions} hint={draft.value === 'none' ? '开启润色后生效，说明会保留。' : '离开输入框自动保存，也可按 ⌘ / Ctrl + Enter。'} save={instructions => run({ type: 'settings.save', patch: { writing: { instructions } } })} /></section>
+    <PageHeader title="表达风格" subtitle="决定识别结果如何整理。个人表达说明会随每次润色一起发送。" />
+    <SectionGroup icon={<Sparkles {...groupIcon} />} title="润色程度">
+      <SettingRow stacked className="pref-untitled writing-level" label="润色程度" control={<>
+        <Segmented ariaLabel="润色程度" options={writingLevels} value={level.value} disabled={level.status === 'saving'} onChange={value => { level.edit(value); void level.commit(value); }} />
+        <p className="pref-hint">{writingLevels.find(item => item.value === level.value)?.hint}</p>
+      </>} status={saving(level.status, () => { void level.commit(); })} />
+    </SectionGroup>
+    <SectionGroup className={inactive ? 'writing-inactive' : ''} icon={<PenLine {...groupIcon} />} title="个人表达说明">
+      <SettingRow stacked className="pref-untitled writing-instructions" label="个人表达说明" htmlFor="writing-instructions"
+        control={<textarea id="writing-instructions" value={instructions.value} placeholder="例如：保留英文技术术语，使用简体中文。"
+          onChange={(event: ChangeEvent<HTMLTextAreaElement>) => instructions.edit(event.target.value)}
+          onBlur={commitInstructions}
+          onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); commitInstructions(); } }} />}
+        status={<div className="pref-status">
+          <p className="pref-hint">{inactive ? '开启润色后生效，说明会保留。' : '离开输入框自动保存，也可按 ⌘ / Ctrl + Enter。'}</p>
+          {saving(instructions.status, commitInstructions)}
+        </div>} />
+    </SectionGroup>
   </>;
 }
