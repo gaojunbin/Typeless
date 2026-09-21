@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerMonitor, safeStorage, screen, session, systemPreferences, Tray } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerMonitor, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,11 +28,19 @@ let shortcutAvailable = false;
 let nativeAvailable = false;
 let shortcutHealthTimer: ReturnType<typeof setInterval> | undefined;
 let refreshingPermissions = false;
+let shortcutPresses = 0;
+let micTestUntil = 0;
 const devUrl = process.env.VITE_DEV_SERVER_URL;
 const pageUrl = devUrl ? new URL(devUrl).origin : pathToFileURL(join(app.getAppPath(), 'dist', 'index.html')).toString();
 if (devUrl && !['localhost', '127.0.0.1'].includes(new URL(devUrl).hostname)) throw new Error('Development UI must use loopback.');
-const native = new NativeClient({ onShortcut: () => { if (quitting) return; void controller?.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); }, onStatus: status => { if (!quitting) nativeAvailable = !status.error; } });
+const native = new NativeClient({ onShortcut: () => shortcutPressed(), onStatus: status => { if (!quitting) nativeAvailable = !status.error; } });
 const delivery = new ClipboardDelivery((text, options) => native.paste(text, options));
+function shortcutPressed() {
+  if (quitting || !store || !controller) return;
+  // The setup guide only has to prove that presses arrive, so it must not start a dictation session.
+  if (!store.snapshot().settings.general.setupCompleted) { shortcutPresses += 1; void refreshShortcutHealth(); return; }
+  void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError);
+}
 function reportShortcutError(result: { ok: boolean; message?: string }) {
   if (quitting || !overlay || overlay.isDestroyed()) return;
   if (!result.ok) {
@@ -66,7 +74,13 @@ async function permissions(request?: 'microphone' | 'accessibility'): Promise<Pe
   const nativeStatus = await native.status();
   nativeAvailable = !nativeStatus.error;
   const microphone = process.platform === 'darwin' || process.platform === 'win32' ? systemPreferences.getMediaAccessStatus('microphone') : 'unknown';
-  return { microphone: ['granted', 'denied', 'not-determined'].includes(microphone) ? microphone as Permissions['microphone'] : 'unknown', accessibility: nativeStatus.accessibility, nativeAvailable, nativeMessage: nativeStatus.error || '', ...shortcutPermissions(nativeStatus, store.snapshot().settings.shortcut.primary, shortcutAvailable) };
+  return { microphone: ['granted', 'denied', 'not-determined'].includes(microphone) ? microphone as Permissions['microphone'] : 'unknown', accessibility: nativeStatus.accessibility, nativeAvailable, nativeMessage: nativeStatus.error || '', shortcutPresses, ...shortcutPermissions(nativeStatus, store.snapshot().settings.shortcut.primary, shortcutAvailable) };
+}
+function openPane(pane: 'microphone' | 'accessibility' | 'inputMonitoring') {
+  const panes: Record<typeof pane, string> = { microphone: 'Privacy_Microphone', accessibility: 'Privacy_Accessibility', inputMonitoring: 'Privacy_ListenEvent' };
+  // Other platforms have no equivalent pane; opening nothing is a successful no-op.
+  if (process.platform === 'darwin') void shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${panes[pane]}`).catch(() => {});
+  else if (process.platform === 'win32' && pane === 'microphone') void shell.openExternal('ms-settings:privacy-microphone').catch(() => {});
 }
 async function refreshShortcutHealth() {
   if (quitting || !controller || refreshingPermissions) return;
@@ -78,7 +92,7 @@ async function configureSettings(applyLogin = false, applyShortcut = true) {
   const settings = store.snapshot().settings;
   if (applyShortcut) {
     globalShortcut.unregisterAll();
-    try { shortcutAvailable = globalShortcut.register(settings.shortcut.fallback, () => { void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); }); } catch { shortcutAvailable = false; }
+    try { shortcutAvailable = globalShortcut.register(settings.shortcut.fallback, () => shortcutPressed()); } catch { shortcutAvailable = false; }
     await native.configureShortcut(settings.shortcut.primary).catch(() => {});
   }
   if (applyLogin && app.isPackaged && ['darwin', 'win32'].includes(process.platform)) app.setLoginItemSettings({ openAtLogin: settings.general.launchAtLogin });
@@ -112,7 +126,7 @@ else {
       callback({ responseHeaders: { ...details.responseHeaders, ...(local ? { 'Content-Security-Policy': [csp] } : {}) } });
     });
     ses.setPermissionRequestHandler((contents, permission, callback, details) => {
-      const allowed = contents.id === mainWindow.webContents.id && trusted(contents, details.requestingUrl || contents.getURL()) && permission === 'media' && ('mediaTypes' in details ? details.mediaTypes || [] : []).every((type: string) => type === 'audio') && ['arming', 'recording'].includes(controller?.sessions.session.status);
+      const allowed = contents.id === mainWindow.webContents.id && trusted(contents, details.requestingUrl || contents.getURL()) && permission === 'media' && ('mediaTypes' in details ? details.mediaTypes || [] : []).every((type: string) => type === 'audio') && (['arming', 'recording'].includes(controller?.sessions.session.status) || micTestUntil > Date.now());
       callback(allowed);
     });
     ses.setPermissionCheckHandler((contents, permission, origin) => Boolean(contents && contents.id === mainWindow.webContents.id && trusted(contents, contents.getURL()) && permission === 'media' && (origin === 'file://' || origin === pageUrl || origin === new URL(pageUrl).origin)));
@@ -127,7 +141,9 @@ else {
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
       },
-      permissions, copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(), quit: () => app.quit(), settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
+      permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },
+      copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(),
+      quit: () => app.quit(), relaunch: () => { app.relaunch(); app.quit(); }, settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
     }, app.getVersion());
     const checkSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) => {
       if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !trusted(event.sender, event.senderFrame.url)) throw new Error('Untrusted IPC sender.');

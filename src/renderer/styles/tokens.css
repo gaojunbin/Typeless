@@ -38,6 +38,17 @@
   --gradient-card-a: linear-gradient(180deg, #edf3f8, #eef7fb);
   --gradient-card-b: linear-gradient(180deg, #e9ecf4, #f3f5fa);
 
+  /* First-run setup guide. See docs/UI_DESIGN.md section 12. */
+  --setup-bg: linear-gradient(90deg, #e1e3e7, #f1f2f6);
+  --setup-art: linear-gradient(180deg, #eef1f7, #f7f8fb);
+  --setup-card: #f9f9f9;
+  --setup-progress-track: #f3f3f3;
+  --setup-progress-fill: linear-gradient(90deg, #9a9a9a, #323232);
+  --setup-feature-card: linear-gradient(180deg, #c4d4ff, #f3f6fe);
+  --meter-active: #1e5cf2;
+  --meter-idle: #d9d9d9;
+  --setup-panel-split: 55%;
+
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 10px;

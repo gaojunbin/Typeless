@@ -109,6 +109,9 @@ try {
   const environment = { ...process.env, ELECTRON_ENABLE_LOGGING: '0' };
   delete environment.ELECTRON_RUN_AS_NODE; delete environment.VITE_DEV_SERVER_URL;
   stage('launch Typeless with isolated fake-provider profile');
+  // Delivery starts in the shell: the first-run setup guide is covered by tests/desktop.e2e.mjs.
+  await mkdir(join(dataRoot, 'typeless', 'settings'), { recursive: true });
+  await writeFile(join(dataRoot, 'typeless', 'settings', 'state.json'), JSON.stringify({ settings: { general: { setupCompleted: true } }, secrets: {} }), { mode: 0o600 });
   app = await launch({ executablePath: process.env.TYPELESS_EXECUTABLE || undefined, args: [...(process.env.TYPELESS_EXECUTABLE ? [] : [root]), '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'], env: { ...environment, TYPELESS_DATA_DIR: join(dataRoot, 'typeless') } });
   await app.evaluate(({ safeStorage }) => {
     safeStorage.isEncryptionAvailable = () => true;

@@ -77,3 +77,18 @@ describe('configuration and opaque document preservation', () => {
     writeFileSync(file, contents); expect(() => new Store(file, crypto)).toThrow('cannot be read'); expect(readFileSync(file, 'utf8')).toBe(contents);
   });
 });
+describe('first-run setup flag', () => {
+  it('starts incomplete on a fresh install and persists completion', () => {
+    const { store, file } = create();
+    expect(store.snapshot().settings.general.setupCompleted).toBe(false);
+    store.saveSettings({ general: { setupCompleted: true } });
+    expect(new Store(file, crypto).snapshot().settings.general.setupCompleted).toBe(true);
+  });
+  it('treats a document saved before the setup guide existed as completed', () => {
+    const { file } = create();
+    writeFileSync(file, JSON.stringify({ settings: { general: { launchAtLogin: false, autoInsert: true } }, secrets: {} }));
+    expect(new Store(file, crypto).snapshot().settings.general.setupCompleted).toBe(true);
+    writeFileSync(file, JSON.stringify({ settings: { general: { autoInsert: true, setupCompleted: false } }, secrets: {} }));
+    expect(new Store(file, crypto).snapshot().settings.general.setupCompleted).toBe(false);
+  });
+});

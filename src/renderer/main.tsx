@@ -16,6 +16,7 @@ import { Busy } from './ui';
 import { VoiceOverlay } from './VoiceOverlay';
 import { Sidebar } from './Sidebar';
 import { Home } from './Home';
+import { SetupGuide } from './onboarding/SetupGuide';
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
@@ -23,6 +24,7 @@ function App() {
   const [page, setPage] = useState<Page | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastFailure = useRef('');
+  const setupDone = useRef<boolean | undefined>(undefined);
   const overlay = location.hash === '#overlay';
   useEffect(() => {
     document.body.classList.toggle('overlay-body', overlay);
@@ -30,7 +32,11 @@ function App() {
     const receive = (value: AppSnapshot) => {
       if (!live) return;
       setSnapshot(value);
-      setPage(current => current ?? (value.settings.asr.hasApiKey ? 'home' : 'ai'));
+      // The setup guide owns the window until it completes; leaving it re-applies the initial page rule.
+      const completed = value.settings.general.setupCompleted;
+      const left = setupDone.current === false && completed;
+      setupDone.current = completed;
+      if (completed) setPage(current => (current && !left ? current : value.settings.asr.hasApiKey ? 'home' : 'ai'));
       // The recovery alert lives on the Home page, so a newly failed dictation brings that page forward.
       const failure = value.session.status === 'error' ? `${value.session.id}:${value.session.errorCode}:${value.session.error}` : '';
       if (failure && failure !== lastFailure.current) setPage('home');
@@ -64,6 +70,10 @@ function App() {
   };
   if (!snapshot) return overlay ? null : <div className="loading"><Busy /><p>{error || '正在打开 Typeless…'}</p></div>;
   if (overlay) return <VoiceOverlay snapshot={snapshot} run={run} />;
+  const toast = error
+    ? <div className="toast" role="alert"><CircleAlert size={18} aria-hidden="true" /><span>{error}</span><button type="button" className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15} /></button></div>
+    : null;
+  if (!snapshot.settings.general.setupCompleted) return <><SetupGuide snapshot={snapshot} run={run} />{toast}</>;
   const current: Page = page ?? 'home';
   return <div className="app-shell">
     <Sidebar page={current} onNavigate={setPage} snapshot={snapshot} />
@@ -78,7 +88,7 @@ function App() {
         </div>
       </div>
     </main>
-    {error && <div className="toast" role="alert"><CircleAlert size={18} aria-hidden="true" /><span>{error}</span><button type="button" className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15} /></button></div>}
+    {toast}
   </div>;
 }
 

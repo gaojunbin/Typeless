@@ -1,0 +1,133 @@
+/* First-run setup guide. See docs/UI_DESIGN.md section 12.
+   Tokens live in tokens.css and primitives in base.css; this sheet only targets guide class names. */
+
+.onboarding { display: flex; flex-direction: column; height: 100vh; min-height: 0; background: var(--bg); }
+
+/* Welcome screen: no progress header, one centred card on the tinted backdrop. */
+.onboarding-welcome {
+  align-items: center; justify-content: center; padding: 24px;
+  background:
+    radial-gradient(560px 380px at 14% 8%, var(--home-glow), transparent 70%),
+    radial-gradient(520px 360px at 88% 94%, rgba(196, 212, 255, .55), transparent 70%),
+    var(--setup-bg);
+  -webkit-app-region: drag;
+}
+.setup-welcome-card {
+  -webkit-app-region: no-drag;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  width: 436px; max-width: 100%;
+  padding: 56px 48px; border-radius: 24px; background: #ffffff; box-shadow: var(--shadow-md); text-align: center;
+}
+.setup-welcome-card h1 { font-size: var(--fs-title); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.setup-welcome-card .setup-subtitle { margin-bottom: 10px; }
+.setup-welcome-card .setup-welcome-start { width: 100%; height: 44px; }
+
+/* Progress header */
+.setup-progress { flex: 0 0 auto; background: var(--bg); -webkit-app-region: drag; }
+.setup-progress nav { display: flex; align-items: center; justify-content: center; height: 56px; padding: 0 16px; }
+body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
+.setup-progress ol { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.setup-progress li { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: var(--fs-nav); font-weight: 400; }
+.setup-progress li[aria-current="step"] { color: var(--text); font-weight: 600; }
+.setup-progress li > svg { color: var(--text-tertiary); }
+.setup-progress-track { height: 4px; background: var(--setup-progress-track); }
+.setup-progress-track i { display: block; height: 100%; background: var(--setup-progress-fill); transition: width var(--dur-slow) var(--ease); }
+
+/* Step shell: 55 / 45 split, left panel scrolls, footer sticks to the bottom. */
+.setup-body { display: grid; grid-template-columns: var(--setup-panel-split) minmax(0, 1fr); flex: 1 1 auto; min-height: 0; }
+.setup-panel { display: flex; flex-direction: column; min-width: 0; padding: 40px 48px; background: var(--bg); overflow: auto; }
+.setup-content { width: 100%; max-width: 520px; }
+.setup-panel h1 { font-size: var(--fs-title); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.setup-subtitle { margin-top: 8px; color: var(--text-secondary); }
+.setup-back { align-self: flex-start; gap: 6px; margin-bottom: 20px; color: var(--text-secondary); }
+.setup-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; max-width: 520px; margin-top: auto; padding-top: 32px; }
+.setup-footer-left { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.setup-footer button.primary { height: 40px; padding: 0 24px; }
+
+.setup-art {
+  display: flex; align-items: center; justify-content: center; min-width: 0; padding: 32px;
+  background:
+    radial-gradient(420px 300px at 22% 14%, var(--home-glow), transparent 70%),
+    radial-gradient(380px 280px at 84% 88%, rgba(196, 212, 255, .55), transparent 70%),
+    var(--setup-art);
+}
+.setup-hero { display: flex; align-items: center; justify-content: center; max-width: 100%; border-radius: var(--radius-xl); background: #ffffff; box-shadow: var(--shadow-md); }
+.setup-hero-meter { width: 320px; height: 200px; }
+
+/* 权限 hero: the system privacy list, presentational only. */
+.setup-hero-privacy { flex-direction: column; align-items: stretch; width: 320px; padding: 14px 20px 18px; }
+.privacy-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.privacy-row + .privacy-row { border-top: 1px solid var(--line); }
+.privacy-row > svg { color: var(--text-secondary); }
+.privacy-label { flex: 1; min-width: 0; font-weight: 500; }
+.privacy-switch { position: relative; flex: 0 0 32px; width: 32px; height: 20px; border-radius: var(--radius-pill); background: var(--switch-off); transition: background var(--dur) var(--ease); }
+.privacy-switch::before {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform var(--dur) var(--ease);
+}
+.privacy-switch[data-on="true"] { background: var(--accent); }
+.privacy-switch[data-on="true"]::before { transform: translateX(12px); }
+.privacy-caption { margin-top: 14px; color: var(--text-tertiary); font-size: var(--fs-caption); }
+
+/* 完成 hero: a still of the recording capsule. Capsule colours mirror section 8; overlay.css is not shared. */
+.setup-hero-capsule { flex-direction: column; gap: 18px; width: 320px; padding: 28px 20px; }
+.capsule-preview { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; width: 165px; height: 48px; padding: 0 6px; border-radius: 24px; background: #1c1a1b; }
+.capsule-circle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; }
+.capsule-cancel { background: #424242; color: #ffffff; }
+.capsule-confirm { background: #ffffff; color: #1c1a1b; }
+.capsule-wave { display: flex; align-items: center; justify-content: center; gap: 3px; height: 30px; }
+.capsule-wave i { width: 3px; height: 3px; border-radius: 3px; background: #ffffff; }
+.capsule-caption { color: var(--text-secondary); }
+
+/* Step content blocks */
+.setup-block, .setup-permissions, .setup-checklist { margin-top: 28px; }
+.setup-block > :first-child { margin-top: 0; }
+.setup-prompt { font-size: var(--fs-heading); font-weight: 600; }
+.setup-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.setup-alert { margin-top: 18px; color: var(--warn); }
+.setup-note { margin-top: 14px; color: var(--warn); }
+.setup-link { margin-top: 16px; color: var(--text-secondary); }
+
+/* 权限 */
+.setup-permissions { display: flex; flex-direction: column; gap: 12px; }
+.permission-card { padding: 20px 24px; border-radius: var(--radius-lg); background: var(--setup-card); }
+.permission-card[data-state="granted"] { padding: 14px 24px; }
+.permission-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; }
+.permission-check { color: #ffffff; }
+.permission-check circle { fill: var(--ink); stroke: var(--ink); }
+.permission-body { margin-top: 8px; color: var(--text-secondary); }
+.permission-body svg { margin-right: 6px; vertical-align: -2px; }
+.permission-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.permission-actions:empty { display: none; }
+.permission-hint { margin-top: 10px; color: var(--text-tertiary); }
+
+/* 麦克风 */
+.setup-field { display: flex; flex-direction: column; gap: 8px; max-width: 320px; margin-top: 20px; }
+.setup-field > label { font-size: var(--fs-heading); font-weight: 600; }
+.level-meter { display: flex; align-items: center; gap: 8px; height: 72px; }
+.level-meter i { width: 10px; border-radius: 5px; background: var(--meter-idle); transition: background 120ms var(--ease); }
+.level-meter i.lit { background: var(--meter-active); }
+.mic-detected, .shortcut-detected { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--text-secondary); }
+
+/* 快捷键 */
+.setup-keyrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 16px 20px; border-radius: var(--radius-lg); background: var(--setup-card); }
+.setup-keyrow-title { font-size: var(--fs-heading); font-weight: 600; }
+.setup-feature-cards { display: flex; flex-direction: column; gap: 16px; width: 260px; max-width: 100%; }
+.setup-feature-card { display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: var(--radius-xl); background: var(--setup-feature-card); }
+.setup-feature-title { font-size: var(--fs-card-title); font-weight: 600; }
+
+/* 完成 */
+.setup-checklist { padding: 4px 20px; border-radius: var(--radius-lg); background: var(--setup-card); }
+.setup-check-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+.setup-check-row + .setup-check-row { border-top: 1px solid var(--line); }
+.setup-check-row .check-label { flex: 1; min-width: 0; font-size: var(--fs-heading); font-weight: 600; }
+.setup-check-row .check-value { color: var(--text-secondary); }
+.setup-check-row .check-ok { color: var(--ok); }
+.setup-check-row .check-warn { color: var(--warn); }
+
+/* The split holds down to the 880px minimum window; only the gutters tighten. */
+@media (max-width: 900px) {
+  .setup-panel { padding: 28px 28px 24px; }
+  .setup-content, .setup-footer { max-width: none; }
+  .setup-art { padding: 20px; }
+}

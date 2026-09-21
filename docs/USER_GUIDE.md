@@ -14,7 +14,30 @@ The window is a two-column shell. The sidebar lists four destinations in order, 
 
 **首页** carries the **说话，不打字** hero and the dictation card: the **开始听写** button, the shortcut keycaps, the recording waveform and elapsed time, the recovery alert and the current result. A shortcut card below it lists the primary and fallback bindings. **配置概览** holds three status cards, **语音识别**, **文字润色** and **快捷键与权限**, each opening the matching destination. A side rail summarizes the speech protocol, polishing level, shortcut status and microphone permission, and offers a **三步开始** quick start.
 
-With no speech key saved, the application opens on **AI 配置**; otherwise it opens on **首页**.
+A new installation reaches this shell only after the setup guide below. Afterwards, with no speech key saved, the application opens on **AI 配置**; otherwise it opens on **首页**.
+
+## Set up on first launch
+
+The first launch of a new installation opens a setup guide instead of the shell. **欢迎使用 Typeless** starts it with **开始设置**; **跳过向导** ends it at once. A progress header then names four steps, **权限**, **麦克风**, **快捷键** and **完成**, each with **继续** and a way to skip.
+
+**权限** lists one card per system permission: the microphone on both platforms, **允许 Typeless 粘贴文字并监听 Fn 键** on macOS, and **启用系统输入助手** on Windows. Only the first card that still needs attention stays expanded; a granted card collapses to its title with a check. The step re-reads the live permission state, so cards collapse while you flip the switches in system settings. **继续** is enabled once every card is granted; **稍后在基本设置中授权** continues without them. The info button on a pending card reveals the manual path, 系统设置 → 隐私与安全性 → 麦克风 or 辅助功能 → 开启 Typeless.
+
+| State | Where you see it | What it means and what to do |
+| --- | --- | --- |
+| **待授权** (Windows helper: **不可用**) | **基本设置 → 系统权限** and the **完成** checklist | The permission was never granted. Use **允许** in the guide, **授权** on the microphone row in **基本设置**, or **打开系统设置** on the assistant row, then confirm the system prompt. |
+| **已授权** | Both surfaces; in the guide the card collapses with a check | Nothing further is needed. |
+| **系统已拒绝麦克风权限。请在系统设置中开启后返回。** | Microphone card after a refusal | The system will not prompt again. Use **打开系统设置**, enable Typeless under 麦克风, and return; the card updates by itself. |
+| **已授权，正在启用 Fn 监听…** (**已授权，正在启用监听…** in **基本设置**) | macOS accessibility card and the shortcut row | Accessibility is granted but the event tap is not listening yet. Typeless restarts its helper; wait a few seconds. |
+| **已授权，但需要重新打开 Typeless 才能生效。** (**已授权但未生效，请重新打开 Typeless** in **基本设置**) | macOS accessibility card and the shortcut row | Restarting the helper did not recover listening. Use **重新打开 Typeless** on the same row to relaunch the application. |
+| **助手不可用，可先使用备用快捷键。** | Windows helper card | The bundled helper is not running, so Right Alt and automatic paste are unavailable. Use the fallback shortcut and the recording button meanwhile. |
+
+On macOS a grant made while Typeless is already running is not always applied to the running process: the system can keep handing it a dead event tap. Typeless notices this and restarts its helper on its own, at most three times in two minutes. When that budget is spent the shortcut reports **已授权但未生效，请重新打开 Typeless**, and relaunching the whole application through **重新打开 Typeless** is the remaining step. A restart is not a guarantee that the system will grant a working tap. Fn listening accepts either Accessibility or Input Monitoring, while automatic paste needs Accessibility, so **快捷键仍不可用？改用输入监控** under the cards opens the Input Monitoring pane as the alternative.
+
+**麦克风** asks you to speak. Pick an input from the **麦克风** selector, which saves immediately, and watch the level meter; **已检测到声音** appears once sound is detected. Without the permission the step offers **允许**, plus **打开系统设置** after a refusal. If the device cannot be opened, 无法访问麦克风，请检查是否被其他应用占用。 names the likely cause. This test stays in the application and sends no audio to a provider.
+
+**快捷键** asks for one press of Fn on macOS, Right Alt on Windows, or the fallback chord. While setup is incomplete a press is only counted and acknowledged with **检测到 Fn**, **检测到 Right Alt** or **检测到备用快捷键**: it does not start dictation, and the capsule does not appear. When the primary listener is not ready, the step says so and the fallback still counts.
+
+**完成** shows a checklist of microphone, assistant and shortcut with their current status, then **去连接 AI 服务** when no speech key is saved and **开始使用** otherwise; **稍后再说** also ends the guide. Finishing or skipping records setup as complete. An installation upgraded from an earlier version already has a settings file, which counts as complete, so it never sees the guide. **基本设置 → 系统权限 → 重新运行设置向导** reopens it at any time.
 
 ## Configure AI once
 
@@ -49,7 +72,9 @@ Use **个人表达说明** for optional instructions such as preferred terminolo
 
 Microphone names may be unavailable before permission is granted; **系统默认** uses the default device. Device choices refresh when devices change. A waveform indicates audio level, not a live transcript. Recording sounds indicate recording transitions; visible state remains authoritative if sound playback is suppressed.
 
-Use the inline permission controls when microphone or native input permissions are missing. On macOS, native Fn listening depends on the event-tap permissions, and automatic paste depends on Accessibility. Review Accessibility and Input Monitoring in system settings; restart if macOS requires it. Development Electron and the installed app can have different permission identities. The app's recording button and automatic copying do not require native paste permission.
+**系统权限** repeats the guide's checks as rows. **麦克风** shows **已授权** or **待授权**, with **授权** to request it and **打开系统设置** once the system has refused it. **辅助功能** on macOS shows **已授权** or **待授权**; **系统输入助手** on Windows shows **已就绪** or **不可用** instead, because nothing is granted there. Both offer **打开系统设置**. macOS adds an **输入监控** row with three states: **已授权** when Input Monitoring itself is granted, **辅助功能已覆盖** when only Accessibility is granted, and **未授权** otherwise, where **打开系统设置** opens the Input Monitoring pane. The last row, **设置向导**, has **重新运行设置向导** and returns you to the first-launch guide without touching any other setting.
+
+The **主要快捷键** row reports its own health beside the keycaps. **已就绪** and **已关闭** need nothing. **已授权，正在启用监听…** means Typeless is restarting its helper to pick up a grant made while the app was running, and **已授权但未生效，请重新打开 Typeless** adds a **重新打开 Typeless** button because restarting the helper was not enough. **请授权辅助功能或输入监控** and **助手正在重新连接** point back to the permission rows. On macOS, Fn listening needs Accessibility or Input Monitoring and automatic paste needs Accessibility. Development Electron and the installed app can hold different permission identities. The recording button and automatic copying do not require the paste permission.
 
 ## Dictate from anywhere
 
@@ -89,6 +114,11 @@ Every finished result replaces the system clipboard. The app does not restore it
 | Endpoint error | Check the base URL and whether the speech protocol matches the service. |
 | No waveform or no speech detected | Check microphone permission and the selected input, then record audible speech. |
 | Fn unavailable or opens another action | Review primary and fallback status in **基本设置**, native permissions, and the macOS keyboard assignment; use the button or fallback meanwhile. |
+| Shortcut shows **已授权，正在启用监听…** | Wait; Typeless is restarting its helper to apply a grant made while it was running. |
+| Shortcut shows **已授权但未生效，请重新打开 Typeless** | Use **重新打开 Typeless** in that row or in the guide; the helper cannot recover listening on its own. |
+| Microphone permission was refused | Use **打开系统设置** in **基本设置** or in the guide, enable Typeless, then return; the system no longer prompts. |
+| Shortcut press does nothing during setup | Expected: while the setup guide is open, presses are only counted to confirm the shortcut arrives. |
+| Want to check permissions again | Run **基本设置 → 系统权限 → 重新运行设置向导**. |
 | Right Alt conflicts with typing | Choose a suitable fallback for your keyboard layout. |
 | Original text appears instead of polished text | Read the warning under the result and check **表达风格** and the text connection. |
 | Text is absent from the destination | Use the retained clipboard manually; check automatic paste and native permissions. |

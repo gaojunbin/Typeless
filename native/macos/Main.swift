@@ -19,6 +19,9 @@ final class ShortcutMonitor {
     private(set) var fnTransitions = 0
     private(set) var activations = 0
     private var previousFn = false
+    private var staleReconciles = 0
+    private let restartOnStale = ProcessInfo.processInfo.environment["TYPELESS_HELPER_RESTART_ON_STALE"] == "1"
+    private static let staleReasons = ["tap_creation_failed", "tap_disabled", "runloop_source_failed"]
     var enabled: Bool {
         guard let tap, let source else { return false }
         return CFMachPortIsValid(tap) && CFRunLoopSourceIsValid(source) && CGEvent.tapIsEnabled(tap: tap)
@@ -34,6 +37,19 @@ final class ShortcutMonitor {
         reconcile()
     }
     func reconcile() {
+        applyTapState()
+        trackStaleTap()
+    }
+    /// A tap that keeps failing while this process is authorized is stale: only a fresh process recovers it.
+    private func trackStaleTap() {
+        let authorized = CGPreflightListenEventAccess() || AXIsProcessTrusted()
+        guard authorized, ShortcutMonitor.staleReasons.contains(reason) else { staleReconciles = 0; return }
+        staleReconciles += 1
+        guard staleReconciles >= 3, restartOnStale else { return }
+        emit(["event": "stale", "params": ["reason": reason]])
+        exit(3)
+    }
+    private func applyTapState() {
         guard binding == "fn" else { clear(); reason = "disabled"; return }
         guard CGPreflightListenEventAccess() || AXIsProcessTrusted() else { clear(); reason = "input_monitoring_denied"; return }
         if enabled { reason = "ready"; return }

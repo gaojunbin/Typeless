@@ -9,7 +9,7 @@ export const defaults = (): AppSettings => ({
   writing: { strength: 'balanced', instructions: '', language: 'auto' },
   audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: true },
   shortcut: { primary: process.platform === 'win32' ? 'RightAlt' : 'Fn', fallback: 'CommandOrControl+Shift+Space' },
-  general: { launchAtLogin: false, autoInsert: true },
+  general: { launchAtLogin: false, autoInsert: true, setupCompleted: false },
 });
 export const bounded = (value: unknown, max: number, label = 'Text'): string => {
   if (typeof value !== 'string' || value.length > max) throw new Error(`${label} must be text with at most ${max} characters.`);
@@ -46,6 +46,10 @@ function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid saved settings.');
   return value as Record<string, unknown>;
 }
+function generalSection(document: Record<string, unknown>): Record<string, unknown> {
+  const settings = object(document.settings);
+  return Object.hasOwn(settings, 'general') ? object(settings.general) : {};
+}
 function projectSettings(saved: Record<string, unknown>): AppSettings {
   const current = defaults();
   const patch: Record<string, unknown> = {};
@@ -64,6 +68,8 @@ export class Store {
     try {
       this.document = object(JSON.parse(readFileSync(file, 'utf8')));
       this.settings = projectSettings(object(this.document.settings));
+      // Documents written before the setup guide existed belong to users who already configured the app by hand.
+      if (!Object.hasOwn(generalSection(this.document), 'setupCompleted')) this.settings.general.setupCompleted = true;
       const secrets = object(this.document.secrets);
       for (const key of ['asr', 'cleanup'] as const) {
         if (!Object.hasOwn(secrets, key)) continue;

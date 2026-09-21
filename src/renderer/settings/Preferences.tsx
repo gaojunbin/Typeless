@@ -5,13 +5,9 @@ import { shortcutLabel } from '../shortcutPresentation';
 import { writingLevel, writingLevels, type WritingLevel } from '../writingPresentation';
 import { SaveStatus, useSettingDraft } from './Autosave';
 import type { SettingsSectionProps } from './types';
+import { inputMonitoringStatus, primaryShortcutStatus } from '../onboarding/permissionStatus';
 import '../styles/preferences.css';
 
-const shortcutStatusMessages: Record<string, string> = {
-  helper_unavailable: '助手正在重新连接', input_monitoring_denied: '请授权辅助功能或输入监控',
-  tap_disabled: '监听不可用，正在恢复', tap_creation_failed: '监听不可用，正在恢复', runloop_source_failed: '监听不可用，正在恢复',
-  binding_mismatch: '快捷键设置尚未生效', ready: '已就绪', disabled: '已关闭',
-};
 const fallbackPresets = ['CommandOrControl+Shift+Space', 'CommandOrControl+Shift+D', 'CommandOrControl+Alt+Space'];
 const groupIcon = { size: 20, strokeWidth: 1.5 } as const;
 
@@ -56,16 +52,19 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
   const mac = platform === 'darwin';
   const primary = platform === 'win32' ? 'RightAlt' : 'Fn';
   const off = settings.shortcut.primary.toLowerCase() === 'disabled';
-  const primaryText = off ? '已关闭' : permissions.primaryShortcutAvailable ? '已就绪' : shortcutStatusMessages[permissions.shortcutMessage] || '暂不可用';
+  const shortcutState = primaryShortcutStatus(snapshot);
+  const inputMonitoring = inputMonitoringStatus(snapshot);
   const fallbackChoices = fallbackPresets.includes(settings.shortcut.fallback) ? fallbackPresets : [settings.shortcut.fallback, ...fallbackPresets];
   const openAccessibility = () => { void run({ type: 'permissions.request', permission: 'accessibility' }); };
+  const openPane = (pane: 'microphone' | 'inputMonitoring') => () => { void run({ type: 'permissions.open', pane }); };
   return <>
     <PageHeader title="基本设置" subtitle="快捷键、麦克风、粘贴行为与系统权限。" />
     <SectionGroup icon={<Keyboard {...groupIcon} />} title="快捷键">
       <SelectRow id="pref-shortcut-primary" label="主要快捷键" description="按一下开始，再按一下结束。"
         saved={off ? 'Disabled' : primary} save={value => run({ type: 'settings.save', patch: { shortcut: { primary: value } } })}
         status={<div className="pref-shortcut-status">
-          <StatusBadge tone={off ? 'muted' : permissions.primaryShortcutAvailable ? 'ok' : 'warn'}>{primaryText}</StatusBadge>
+          <StatusBadge tone={shortcutState.tone}>{shortcutState.text}</StatusBadge>
+          {permissions.shortcutMessage === 'relaunch_required' && <button type="button" className="secondary small" onClick={() => { void run({ type: 'app.relaunch' }); }}>重新打开 Typeless</button>}
           {!off && <KeyChips binding={settings.shortcut.primary} mac={mac} />}
         </div>}>
         <option value={primary}>{primary === 'Fn' ? 'Fn' : 'Right Alt'} · 按一下开始 / 结束</option>
@@ -90,11 +89,16 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
     </SectionGroup>
     <SectionGroup icon={<ShieldCheck {...groupIcon} />} title="系统权限">
       <PermissionRow label="麦克风" granted={permissions.microphone === 'granted'} text={permissions.microphone === 'granted' ? '已授权' : '待授权'}
-        action={permissions.microphone === 'granted' ? undefined : { label: '授权', onClick: () => { void run({ type: 'permissions.request', permission: 'microphone' }); } }} />
+        action={permissions.microphone === 'granted' ? undefined
+          : permissions.microphone === 'denied' ? { label: '打开系统设置', onClick: openPane('microphone') }
+          : { label: '授权', onClick: () => { void run({ type: 'permissions.request', permission: 'microphone' }); } }} />
       {mac
         ? <PermissionRow label="辅助功能" granted={permissions.accessibility} text={permissions.accessibility ? '已授权' : '待授权'} action={{ label: '打开系统设置', onClick: openAccessibility }} />
         : <PermissionRow label="系统输入助手" granted={permissions.nativeAvailable} text={permissions.nativeAvailable ? '已就绪' : '不可用'} action={{ label: '打开系统设置', onClick: openAccessibility }} />}
-      {mac && <PermissionRow label="输入监控" granted={permissions.inputMonitoring} text={permissions.inputMonitoring ? '已授权' : '未单独授权'} />}
+      {mac && <PermissionRow label="输入监控" granted={inputMonitoring.ok} text={inputMonitoring.text}
+        action={inputMonitoring.ok ? undefined : { label: '打开系统设置', onClick: openPane('inputMonitoring') }} />}
+      <SettingRow inline className="pref-permission-row" label="设置向导" description="重新检查权限、麦克风与快捷键。"
+        control={<button type="button" className="secondary small" onClick={() => { void run({ type: 'settings.save', patch: { general: { setupCompleted: false } } }); }}>重新运行设置向导</button>} />
     </SectionGroup>
   </>;
 }

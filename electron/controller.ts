@@ -7,15 +7,18 @@ export interface ControllerHost {
   publish(snapshot: AppSnapshot): void;
   paste(text: string, signal?: AbortSignal): Promise<{ ok: boolean; status?: string; message?: string; code?: string }>;
   permissions(request?: 'microphone' | 'accessibility'): Promise<Permissions>;
+  openPane(pane: 'microphone' | 'accessibility' | 'inputMonitoring'): void;
+  microphoneTest(active: boolean): void;
   copy(text: string, signal?: AbortSignal): Promise<void>;
   show(): void;
   hide(): void;
   quit(): void;
+  relaunch(): void;
   settingsChanged(changes: { login: boolean; shortcut: boolean }): Promise<void>;
 }
 export class Controller {
   readonly sessions: Sessions;
-  private permissions: Permissions = { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', inputMonitoring: false, primaryShortcutAvailable: false, fallbackShortcutAvailable: false, shortcutMessage: 'helper_unavailable' };
+  private permissions: Permissions = { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', inputMonitoring: false, primaryShortcutAvailable: false, fallbackShortcutAvailable: false, shortcutMessage: 'helper_unavailable', shortcutPresses: 0 };
   constructor(private store: Store, private providers: Providers, private host: ControllerHost, private version: string) {
     this.sessions = new Sessions(store, providers, { ...host, changed: () => this.publish() });
   }
@@ -51,9 +54,12 @@ export class Controller {
           await this.sessions.copy(action.source); break;
         case 'permissions.refresh': await this.refreshPermissions(); break;
         case 'permissions.request': if (!['microphone', 'accessibility'].includes(action.permission)) throw new Error('Invalid permission.'); await this.refreshPermissions(action.permission); break;
+        case 'permissions.open': if (!['microphone', 'accessibility', 'inputMonitoring'].includes(action.pane)) throw new Error('Invalid pane.'); this.host.openPane(action.pane); break;
+        case 'microphone.test': if (typeof action.active !== 'boolean') throw new Error('Invalid value.'); this.host.microphoneTest(action.active); break;
         case 'window.show': this.host.show(); break;
         case 'window.hide': this.host.hide(); break;
         case 'app.quit': this.host.quit(); break;
+        case 'app.relaunch': this.host.relaunch(); break;
         default: throw new Error('Unsupported action.');
       }
       this.publish(); return { ok: true };

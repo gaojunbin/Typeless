@@ -39,7 +39,7 @@ The main window becomes a two-column shell.
 
 Destinations (in this order): `home` 首页, `ai` AI 配置, `basic` 基本设置, `style` 表达风格. All four render inside the content column; there is no modal settings sheet (official Typeless uses one; this project keeps settings as pages because the whole product is configuration). The `Page` type lives in `src/renderer/settings/types.ts`.
 
-Initial page: `ai` when no speech key is saved, else `home`. Recovery links (`recoverySettings`) and the unconfigured primary action navigate to `ai` or `basic` exactly as today. Because the recovery alert lives on 首页, the shell switches to `home` whenever a dictation session newly enters the `error` state, so clicking the recovery capsule (which only shows the window) always lands on the alert.
+Initial page: the first-run setup guide (section 12) while `settings.general.setupCompleted` is `false`; afterwards `ai` when no speech key is saved, else `home`. Recovery links (`recoverySettings`) and the unconfigured primary action navigate to `ai` or `basic` exactly as today. Because the recovery alert lives on 首页, the shell switches to `home` whenever a dictation session newly enters the `error` state, so clicking the recovery capsule (which only shows the window) always lands on the alert.
 
 Sidebar semantics: `<nav aria-label="主导航">` containing a `role="tablist"` with four `role="tab"` buttons (`id="settings-tab-<page>"`, `aria-selected`, `aria-controls="settings-panel-<page>"`, arrow/Home/End keyboard navigation as the current tabs). Each page is a `role="tabpanel"` with `id="settings-panel-<page>"` and `aria-labelledby`; only the active panel is rendered (not hidden panels), so `getByRole('tabpanel')` counts one.
 
@@ -285,3 +285,125 @@ Cross-file contract: `main.tsx` renders `<Sidebar page onNavigate snapshot />` a
 3. Screenshots of 首页 (idle, recording, result, recovery), AI 配置, 基本设置, 表达风格, capsule (recording, processing, recovery) are captured into `docs/screenshots/` and visually match sections 6–8.
 4. Window is usable at 880×600 without horizontal scrolling; setting rows show two columns at 1000px window width and stack below 900px.
 5. No plaintext copy changes beyond those listed here; no new `AppAction`s; `npm test` count does not decrease.
+
+## 12. First-run setup guide
+
+Added after the 2.0.0 release. The guide walks a new install through every system permission before the main shell appears, modelled on the official onboarding (`docs/research/ui-official-onboarding-and-changelog.md` section 2: progress header with gradient bar, one-expanded-at-a-time permission cards that collapse with a black check, 15-bar blue microphone meter, periwinkle feature cards). It also fixes the "监听不可用，正在恢复" dead end: a helper that is trusted but whose event tap still fails is restarted, and the app can be relaunched from the UI.
+
+### 12.1 Trigger and exit
+
+- `settings.general.setupCompleted` (new, `boolean`). Fresh installs start at `false`; a `state.json` written before this flag existed is loaded as `true` (upgrades never see the guide). Store handles both; the renderer only reads the flag.
+- While the flag is `false`, `main.tsx` renders `<SetupGuide snapshot run />` (from `src/renderer/onboarding/SetupGuide.tsx`) instead of the sidebar shell. Nothing else changes in the shell code path.
+- The guide ends by saving `{ general: { setupCompleted: true } }`. The shell then opens on `ai` when no speech key is saved, otherwise `home` (the existing initial-page rule). 基本设置 gains a "重新运行设置向导" button that saves the flag back to `false`.
+- While the flag is `false`, the main process counts shortcut presses instead of starting dictation (12.4). The voice capsule therefore never appears during setup.
+
+### 12.2 Chrome
+
+Welcome screen (no progress header): the whole window is `--setup-bg` with two soft radial glows; a centred white card 436 wide (auto height, padding 56px 48px, radius 24, `--shadow-md`) holds the `AudioWaveform` mark (32px), `h1` "欢迎使用 Typeless" (`--fs-title`, weight 700), grey subtitle "说话，不打字", a primary pill "开始设置" (full card width, height 44) and a text link "跳过向导" (completes setup immediately). The card keeps its 436px width at every window size (the minimum window is 880 wide).
+
+Step shell (steps 权限, 麦克风, 快捷键, 完成):
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ ● ● ●     权限  ›  麦克风  ›  快捷键  ›  完成                │ 56px, white
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │ 4px bar
+├──────────────────────────────┬─────────────────────────────┤
+│ ← 上一步                     │                             │
+│                              │                             │
+│ h1 (--fs-title)              │      art panel: --setup-art │
+│ subtitle (--text-secondary)  │      one hero card          │
+│                              │                             │
+│ … step content …             │                             │
+│                              │                             │
+│ [skip link]        [继续]    │                             │
+└──────────────────────────────┴─────────────────────────────┘
+        55% (--setup-panel-split)          45%
+```
+
+- Header: `nav[aria-label="设置进度"]` > `ol` with four `li`; the active one carries `aria-current="step"`, weight 600, `--text`; others `--text-secondary`, weight 400; separators are `ChevronRight` 14px `--text-tertiary`. The whole header is a drag region on macOS (`-webkit-app-region: drag`) with `padding-top: 8px` so it clears the traffic lights, and the label row is centred.
+- Progress bar: `role="progressbar"` with `aria-valuemin=0 aria-valuemax=100 aria-valuenow`, track `--setup-progress-track`, fill `--setup-progress-fill`, transition `width var(--dur-slow)`. Fill: 权限 `15 + 25 × granted/total` (%), 麦克风 55, 快捷键 75, 完成 100.
+- Left panel: white, padding `40px 48px`, content max-width 520, flex column; the footer row sticks to the bottom (`margin-top: auto`, `justify-content: space-between`). The "← 上一步" text button sits top-left (`ArrowLeft` 14px); it is absent on 权限.
+- Right panel: `--setup-art` with two radial glows (`--home-glow` and `rgba(196,212,255,.55)`), centred hero card. The split holds at every width the window allows (minimum 880): the art panel is never hidden, because the microphone meter lives there.
+- Buttons: primary pill = `--ink` fill, white text, height 40, padding 0 24; secondary = white, `1px solid var(--line-strong)`; text link = `.text-button`. Disabled primary = `--bg-selected` fill, `--text-tertiary` label.
+
+### 12.3 Steps
+
+**权限** — `h1` "在这台电脑上设置 Typeless", subtitle "两项系统权限，只在你听写时使用。". Cards are stacked (`gap: 12px`), fill `--setup-card`, radius `--radius-lg`, padding 20 24. Only the first non-granted card is expanded; a granted card collapses to its title row with a filled black circular check (`CircleCheck` 22px, `--ink`). Each card is `.permission-card[data-permission][data-state]` with an `h3` title.
+
+| `data-permission` | Platform | Title | Expanded body | Primary control |
+| --- | --- | --- | --- | --- |
+| `microphone` | all | 允许 Typeless 使用麦克风 | 只在你按下快捷键听写时访问麦克风。 | "允许" → `permissions.request microphone` |
+| `accessibility` | darwin | 允许 Typeless 粘贴文字并监听 Fn 键 | Typeless 需要辅助功能权限，才能把结果粘贴到当前输入框，并识别单独按下的 Fn。 | "允许" → `permissions.request accessibility` |
+| `helper` | win32 | 启用系统输入助手 | Typeless 通过内置助手识别 Right Alt 并粘贴文字，无需额外授权。 | none |
+
+`data-state` values and their rendering:
+
+- `pending`: body + "允许" pill + `Info` icon button (aria-label "为什么需要此权限", toggles one extra line of the manual path: 系统设置 → 隐私与安全性 → 辅助功能 / 麦克风 → 开启 Typeless).
+- `denied` (microphone `denied`; helper `nativeAvailable === false`): body "系统已拒绝麦克风权限。请在系统设置中开启后返回。" / "助手不可用，可先使用备用快捷键。" and, for the microphone, "打开系统设置" → `permissions.open microphone`.
+- `enabling` (accessibility `true` but `primaryShortcutAvailable` false and `shortcutMessage` ∈ `tap_stale | tap_disabled | tap_creation_failed | runloop_source_failed`): body "已授权，正在启用 Fn 监听…" with `Busy`.
+- `relaunch` (`shortcutMessage === 'relaunch_required'`): body "已授权，但需要重新打开 Typeless 才能生效。" and "重新打开 Typeless" → `app.relaunch`.
+- `granted`: microphone `granted`; accessibility `true` and (`primaryShortcutAvailable` or primary shortcut `Disabled`); helper `nativeAvailable`.
+
+Below the cards on macOS: text link "快捷键仍不可用？改用输入监控" → `permissions.open inputMonitoring`.
+
+Hero card: a white card (radius `--radius-xl`, 320 wide) that mirrors the OS privacy list: one row per permission card (icon `Mic` / `Accessibility` / `Keyboard`, label 麦克风 / 辅助功能 / 系统输入助手) with a switch graphic (`--switch-off` track, `--accent` when on) that flips as the card becomes `granted`; a caption "系统设置 → 隐私与安全性" underneath in `--text-tertiary`. Footer: left text link "稍后在基本设置中授权" (advances regardless); right primary "继续", enabled only when every card is `granted`. The step re-renders live from `snapshot.permissions` (main publishes every 2 s and after each request), so the user watches cards collapse as they flip the OS switches.
+
+**麦克风** — `h1` "说几句话，测试麦克风", subtitle "看到蓝色音量条随声音跳动即可。". Content: bold prompt "说话时能看到蓝色的条在动吗？", then a `SettingRow`-like row with `select` labelled "麦克风" (options: 系统默认 + `enumerateDevices()` audio inputs; change saves `audio.deviceId` immediately and restarts the test stream), then a status line that shows `StatusBadge ok` "已检测到声音" (`.mic-detected`) once any level ≥ 0.02 was seen on this step. If `permissions.microphone !== 'granted'`, the content instead shows "先允许 Typeless 使用麦克风" with "允许" (`permissions.request microphone`) and, when `denied`, "打开系统设置" (`permissions.open microphone`). If `getUserMedia` throws, show `role="alert"` "无法访问麦克风，请检查是否被其他应用占用。". Footer: "上一步" link, primary "继续" (always enabled).
+
+Hero card: white, radius `--radius-xl`, 320×200, holding `.level-meter[data-active]` with 15 `i` bars (width 10, radius 5, gap 8, heights 24…72 in a shallow arc); lit bars `--meter-active`, idle `--meter-idle`; lit count = `round(level × 15)` with 120 ms ease. Level = RMS of an `AnalyserNode` time-domain buffer × 4, clamped to 1.
+
+Stream lifecycle (`src/renderer/onboarding/MicTest.tsx`): on mount dispatch `{ type: 'microphone.test', active: true }`, then `getUserMedia({ audio: { deviceId: id === 'default' ? undefined : { exact: id } } })`; on unmount stop tracks, close the `AudioContext`, dispatch `active: false`. Never sends audio to main.
+
+**快捷键** — `h1` "试试快捷键", subtitle "在任何应用里，按一下 Fn 开始听写，再按一下结束。" (Windows: Right Alt). Content: instruction card "现在按一下 Fn" with `KeyChips size="keycap"`; when `permissions.shortcutPresses` exceeds its value at step entry, render `.shortcut-detected` (`StatusBadge ok`) "检测到 Fn" / "检测到 Right Alt" and the copy "很好，快捷键可以用了。". If `primaryShortcutAvailable` is false, show a warn note "Fn 监听尚未就绪，可先用备用快捷键；稍后可在基本设置中查看。" and count fallback presses the same way (the badge then reads "检测到备用快捷键"). A second row lists the fallback chord: "备用快捷键 · 任何时候都可用" with keycaps. Footer: "上一步", primary "继续" (always enabled).
+
+Hero: two `--setup-feature-card` cards (radius `--radius-xl`, padding 24): "听写" with the primary keycap, "备用" with the fallback keycaps — white keycaps with a 1px `--ink` outline, as in the official "Experience it" screen.
+
+**完成** — `h1` "一切就绪" when `settings.asr.hasApiKey`, otherwise "还差最后一步"; subtitle "连接语音识别服务后，就可以在任何应用里开口了。" (only when no key). Content: a checklist card with three rows (麦克风 / 辅助功能 or 系统输入助手 / 快捷键) each with `CircleCheck` (`--ok`) or `CircleAlert` (`--warn`) and the same wording as 基本设置. Footer: text link "稍后再说" (completes setup); primary "去连接 AI 服务" (no key) or "开始使用" (key present). Both save `setupCompleted: true`; the shell's initial-page rule does the rest.
+
+Hero card: a preview of the voice capsule from section 8 rendered statically inside a white card (black pill 165×48 with ten idle bars, cancel and confirm circles) above the caption "听写时会出现在屏幕底部", so the user knows what to expect after the guide.
+
+### 12.4 Main-process behaviour (Agent N)
+
+- `permissions.shortcutPresses` (new) counts native and fallback presses since launch. When `settings.general.setupCompleted` is `false`, both handlers increment the counter and call the health refresh (so the snapshot publishes at once) instead of dispatching `dictation.toggle`. When `true`, behaviour is unchanged.
+- `{ type: 'microphone.test', active }`: main records `micTestUntil = active ? now + 120 s : 0`. The media permission request and check handlers allow audio when `micTestUntil > now` in addition to `arming`/`recording`.
+- `{ type: 'permissions.open', pane }`: darwin opens `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone | Privacy_Accessibility | Privacy_ListenEvent`; win32 opens `ms-settings:privacy-microphone` for `microphone` and is a no-op otherwise; other platforms no-op. Always `{ ok: true }`.
+- `{ type: 'app.relaunch' }`: `app.relaunch()` then `app.quit()` through the normal `before-quit` path.
+- Helper stale-tap restart. `native/macos/Main.swift`: when `reconcile()` runs while trusted (`CGPreflightListenEventAccess() || AXIsProcessTrusted()`) and ends in `tap_creation_failed`, `tap_disabled` or `runloop_source_failed`, increment a stale counter (reset on `ready`). At 3 consecutive stale reconciles and only when the environment variable `TYPELESS_HELPER_RESTART_ON_STALE=1` is set, emit `{"event":"stale","params":{"reason":…}}` and `exit(3)`. Document the event and exit code in `native/PROTOCOL.md`.
+- `electron/native-client.ts`: on child exit with code 3, allow an immediate restart (`nextRecoveryAt = now + 500 ms`) and record the timestamp. Spawn with the environment flag while fewer than 3 such restarts happened in the last 120 s; otherwise spawn without it and expose `restartsExhausted: true` on every `NativeStatus` until a status reports `shortcutReason: 'ready'`, which clears the history.
+- `electron/shortcut-status.ts`: when the reason is one of the three stale codes and the helper is trusted (`accessibility || inputMonitoring`), `shortcutMessage` becomes `relaunch_required` if `restartsExhausted`, else `tap_stale`. All other mappings stay.
+- Unit tests: `tests/shortcut-status.test.ts` for the two new codes; `tests/native-client.test.ts` for exit-code-3 restart, the 3-in-120 s budget, the environment flag and `restartsExhausted`; `native/bin/typeless-native --self-test` must still pass.
+
+### 12.5 基本设置 changes (Agent O)
+
+- Shortcut status copy: `tap_stale` → "已授权，正在启用监听…"; `relaunch_required` → "已授权但未生效，请重新打开 Typeless" plus a small secondary button "重新打开 Typeless" → `app.relaunch`. Existing codes keep their copy.
+- 系统权限 group: the 麦克风 row shows "打开系统设置" (`permissions.open microphone`) instead of "授权" when the status is `denied`. The 输入监控 row reads "已授权" (`ok`) when input monitoring itself is granted, "辅助功能已覆盖" (`ok`) when only accessibility is granted, otherwise "未授权" (`warn`) with "打开系统设置" (`permissions.open inputMonitoring`). New row 设置向导, description "重新检查权限、麦克风与快捷键。", button "重新运行设置向导" → `settings.save { general: { setupCompleted: false } }`.
+
+### 12.6 Test hooks (extends section 10)
+
+- Guide root `main.onboarding[aria-label="设置向导"]`; `nav[aria-label="主导航"]` is not rendered while the guide is up, and vice versa.
+- Welcome: `h1` "欢迎使用 Typeless"; buttons "开始设置", "跳过向导".
+- Header: `nav[aria-label="设置进度"] li[aria-current="step"]`; `[role="progressbar"]` with `aria-valuenow`.
+- 权限: `h1` "在这台电脑上设置 Typeless"; `.permission-card[data-permission][data-state]` with `h3`; buttons "允许", "打开系统设置", "重新打开 Typeless", "改用输入监控" (text of the link ends with it), "稍后在基本设置中授权", "继续".
+- 麦克风: `h1` "说几句话，测试麦克风"; `select` labelled "麦克风"; `.level-meter i` × 15; `.mic-detected`; buttons "上一步", "继续".
+- 快捷键: `h1` "试试快捷键"; `.shortcut-detected`; buttons "上一步", "继续".
+- 完成: `h1` "一切就绪" | "还差最后一步"; buttons "去连接 AI 服务" | "开始使用", "稍后再说".
+- 基本设置: button "重新运行设置向导"; button "重新打开 Typeless" only while `relaunch_required`; 输入监控 badge "已授权" | "辅助功能已覆盖" | "未授权".
+
+### 12.7 Ownership for this change
+
+| Owner | Files (exclusive) |
+| --- | --- |
+| Lead (before fan-out) | `src/shared/contracts.ts`, `src/core/store.ts`, `tests/core-store.test.ts`, `src/renderer/styles/tokens.css`, `docs/UI_DESIGN.md`, `CLAUDE.md` |
+| Agent N native + main | `native/macos/Main.swift`, `native/PROTOCOL.md`, `electron/native-client.ts`, `electron/shortcut-status.ts`, `electron/main.ts`, `electron/controller.ts`, `tests/native-client.test.ts`, `tests/shortcut-status.test.ts`, `tests/core-session.test.ts` (host stub only) |
+| Agent O renderer | `src/renderer/onboarding/**` (new), `src/renderer/styles/onboarding.css` (new), `src/renderer/main.tsx`, `src/renderer/bridge.ts`, `src/renderer/settings/Preferences.tsx`, `src/renderer/styles/preferences.css` |
+| Agent D verification (after N and O) | `tests/desktop.e2e.mjs`, `tests/dictation-delivery.e2e.mjs`, `docs/screenshots/*`, `docs/VALIDATION.md` |
+| Agent E docs (after N and O) | `README.md`, `docs/USER_GUIDE.md`, `docs/PROPOSAL.md` |
+
+Agent O imports primitives from `ui.tsx` but does not edit it, `base.css` or `shell.css`; anything new lives under `onboarding/` and `onboarding.css`. The preview bridge must simulate the new actions (`permissions.request` flips the matching flag, `microphone.test` and `permissions.open` return ok, `app.relaunch` returns ok) so the guide renders in a plain browser.
+
+### 12.8 Acceptance
+
+1. `npm run typecheck`, `npm test`, `npm run build`, `native/bin/typeless-native --self-test` pass; the unit-test count does not decrease.
+2. `npm run test:desktop` launches a fresh profile, walks 欢迎 → 权限 (skip link) → 麦克风 (fake device lights the meter and `.mic-detected` appears) → 快捷键 → 完成 → "去连接 AI 服务", asserts the shell opens on AI 配置 with `general.setupCompleted === true`, and the relaunch stage lands directly in the shell.
+3. The guide is usable at 880×600 without horizontal scrolling on every step.
+4. Existing shell behaviour and hooks in section 10 are unchanged once setup is complete.

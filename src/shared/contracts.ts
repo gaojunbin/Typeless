@@ -14,7 +14,7 @@ export interface AppSettings {
   writing: { strength: 'light' | 'balanced'; instructions: string; language: string };
   audio: { deviceId: string; maxDurationSeconds: number; interactionSounds: boolean };
   shortcut: { primary: string; fallback: string };
-  general: { launchAtLogin: boolean; autoInsert: boolean };
+  general: { launchAtLogin: boolean; autoInsert: boolean; setupCompleted: boolean };
 }
 
 export type DeliveryStatus = 'none' | 'pending' | 'copied' | 'confirmed' | 'dispatched' | 'failed';
@@ -45,6 +45,8 @@ export interface Permissions {
   fallbackShortcutAvailable: boolean;
   inputMonitoring: boolean;
   shortcutMessage: string;
+  /** Primary or fallback shortcut presses observed since launch. Counts instead of toggling dictation while setup is incomplete. */
+  shortcutPresses: number;
 }
 
 export interface AppSnapshot {
@@ -67,9 +69,12 @@ export type AppAction =
   | { type: 'dictation.copy'; source?: 'result' | 'raw' }
   | { type: 'permissions.refresh' }
   | { type: 'permissions.request'; permission: 'microphone' | 'accessibility' }
+  | { type: 'permissions.open'; pane: 'microphone' | 'accessibility' | 'inputMonitoring' }
+  | { type: 'microphone.test'; active: boolean }
   | { type: 'window.show' }
   | { type: 'window.hide' }
-  | { type: 'app.quit' };
+  | { type: 'app.quit' }
+  | { type: 'app.relaunch' };
 
 export interface ActionResult {
   ok: boolean;

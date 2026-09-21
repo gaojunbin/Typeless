@@ -29,12 +29,12 @@ const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 let app;
 let activeInstance;
 const hardDeadline = setTimeout(() => {
-  console.error(JSON.stringify({ error: 'Electron E2E exceeded its 90-second wall deadline.', dataRoot }));
+  console.error(JSON.stringify({ error: 'Electron E2E exceeded its 150-second wall deadline.', dataRoot }));
   activeInstance?.process().kill('SIGKILL');
   server.closeAllConnections();
   process.exit(2);
-}, 90000);
-const cleanupDeadline = setTimeout(() => { void closeInstance(activeInstance); }, 84000);
+}, 150000);
+const cleanupDeadline = setTimeout(() => { void closeInstance(activeInstance); }, 144000);
 function stage(name) { console.log(`[e2e] ${name}`); }
 async function closeInstance(instance) {
   if (!instance) return;
@@ -57,7 +57,7 @@ async function launch() {
   activeInstance = instance;
   instance.process().stderr?.on('data', chunk => process.stderr.write(`[electron stderr] ${chunk}`));
   instance.process().stdout?.on('data', chunk => process.stdout.write(`[electron stdout] ${chunk}`));
-  await instance.evaluate(async ({ safeStorage, clipboard, ClipboardItem }) => {
+  await instance.evaluate(async ({ safeStorage, clipboard, ClipboardItem, systemPreferences }) => {
     const nativeHtmlFormat = 'electron application/osclipboard;format="public.html"';
     const ownerFormat = 'electron application/osclipboard;format="dev.typeless.owner"';
     const originals = await Promise.all((await clipboard.read()).map(async item => {
@@ -103,6 +103,10 @@ async function launch() {
     safeStorage.isEncryptionAvailable = () => true;
     safeStorage.encryptString = value => Buffer.from(`TEST-ONLY:${value}`);
     safeStorage.decryptString = buffer => buffer.toString().replace(/^TEST-ONLY:/, '');
+
+    // Chromium serves fake audio without a device, but the setup guide gates its microphone step on
+    // the OS permission status. Reporting it as granted keeps the meter check out of the TCC prompt.
+    systemPreferences.getMediaAccessStatus = () => 'granted';
   });
   const diagnostics = [];
   instance.on('window', page => {
@@ -120,7 +124,9 @@ async function launch() {
     page.on('console', message => diagnostics.push(`console: ${message.type()} ${message.text()}`));
     page.on('pageerror', error => diagnostics.push(`pageerror: ${error.message}`));
     await page.waitForFunction(() => Boolean(window.typeless), undefined, { timeout: 15000 });
-    await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('tablist').waitFor({ state: 'visible', timeout: 15000 });
+    // A fresh profile opens the setup guide; a completed profile opens the shell directly.
+    await page.locator('main.onboarding[aria-label="设置向导"], nav[aria-label="主导航"] [role="tablist"]').first().waitFor({ state: 'visible', timeout: 15000 });
+    await page.evaluate(() => window.typeless.dispatch({ type: 'permissions.refresh' }));
     await page.evaluate(() => {
       window.__typelessTrace = [];
       window.typeless.subscribe(value => {
@@ -145,6 +151,8 @@ async function launch() {
 }
 const dispatch = (page, action) => page.evaluate(action => window.typeless.dispatch(action), action);
 const snapshot = page => page.evaluate(() => window.typeless.getSnapshot());
+const capture = (page, name) => page.screenshot({ path: join(dataRoot, `${name}.png`), animations: 'disabled' });
+const setupCards = process.platform === 'darwin' ? ['microphone', 'accessibility'] : process.platform === 'win32' ? ['microphone', 'helper'] : ['microphone'];
 async function waitStatus(page, status) {
   const deadline = Date.now() + 15000;
   let current;
@@ -177,6 +185,54 @@ async function record(page) {
 try {
   let launched = await launch(); app = launched.instance; let page = launched.page;
   const openTab = name => page.getByRole('tab', { name, exact: true }).click();
+  const shell = () => page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('tablist');
+  const guide = () => page.locator('main.onboarding[aria-label="设置向导"]');
+  const setupStep = () => page.locator('nav[aria-label="设置进度"] li[aria-current="step"]');
+
+  stage('a fresh profile opens the setup guide instead of the shell');
+  await guide().waitFor({ state: 'visible', timeout: 15000 });
+  assert.equal(await page.getByRole('navigation', { name: '主导航', exact: true }).count(), 0, 'The shell must stay hidden while setup is incomplete.');
+  await expect(page.locator('h1')).toHaveText('欢迎使用 Typeless');
+  await capture(page, 'setup-welcome');
+  await page.getByRole('button', { name: '开始设置', exact: true }).click();
+
+  stage('setup 权限 lists the platform cards and can be postponed');
+  await expect(setupStep()).toHaveText('权限');
+  await expect(page.locator('[role="progressbar"]')).toHaveAttribute('aria-valuenow', /^\d+$/);
+  await expect(page.locator('h1')).toHaveText('在这台电脑上设置 Typeless');
+  await expect(page.locator('.permission-card')).toHaveCount(setupCards.length);
+  assert.deepEqual(await page.locator('.permission-card').evaluateAll(cards => cards.map(card => card.dataset.permission)), setupCards);
+  await capture(page, 'setup-permissions');
+  // 允许 is never clicked: it would raise the real system permission prompt.
+  assert.equal((await dispatch(page, { type: 'microphone.test', active: true })).ok, true);
+  await page.getByRole('button', { name: '稍后在基本设置中授权', exact: true }).click();
+
+  stage('setup 麦克风 lights the meter from the fake device');
+  await expect(setupStep()).toHaveText('麦克风');
+  await expect(page.locator('h1')).toHaveText('说几句话，测试麦克风');
+  await expect(page.getByLabel('麦克风', { exact: true })).toBeVisible();
+  assert.equal(await page.locator('.level-meter i').count(), 15);
+  assert.equal((await dispatch(page, { type: 'microphone.test', active: true })).ok, true);
+  await page.locator('.mic-detected').waitFor({ state: 'visible', timeout: 10000 });
+  await capture(page, 'setup-microphone');
+  await page.getByRole('button', { name: '继续', exact: true }).click();
+
+  stage('setup 快捷键 reports no press without one');
+  await expect(setupStep()).toHaveText('快捷键');
+  await expect(page.locator('h1')).toHaveText('试试快捷键');
+  assert.equal(await page.locator('.shortcut-detected').count(), 0, 'No shortcut was pressed, so no detection may be reported.');
+  await capture(page, 'setup-shortcut');
+  await page.getByRole('button', { name: '继续', exact: true }).click();
+
+  stage('setup 完成 hands an unconfigured install to AI 配置');
+  await expect(setupStep()).toHaveText('完成');
+  await expect(page.locator('h1')).toHaveText('还差最后一步');
+  await capture(page, 'setup-done');
+  await page.getByRole('button', { name: '去连接 AI 服务', exact: true }).click();
+  await shell().waitFor({ state: 'visible', timeout: 15000 });
+  assert.equal(await guide().count(), 0, 'The guide must close once setup is complete.');
+  assert.equal((await snapshot(page)).settings.general.setupCompleted, true);
+
   stage('unconfigured launch opens AI 配置 and Home offers the setup action');
   await expect(page.getByRole('tab', { name: 'AI 配置', exact: true })).toHaveAttribute('aria-selected', 'true');
   await openTab('首页');
@@ -318,6 +374,17 @@ try {
   await waitSettings({ asr: { model: 'mimo-v2.5-asr', hasApiKey: true } });
   // No replacement key is supplied again: later HTTP and restart checks prove retention.
 
+  stage('基本设置 reruns the guide and 跳过向导 returns to the shell');
+  await openTab('基本设置');
+  await page.getByRole('button', { name: '重新运行设置向导', exact: true }).click();
+  await guide().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.getByRole('navigation', { name: '主导航', exact: true }).count(), 0, 'The rerun guide must replace the shell.');
+  assert.equal((await snapshot(page)).settings.general.setupCompleted, false);
+  await page.getByRole('button', { name: '跳过向导', exact: true }).click();
+  await shell().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await guide().count(), 0);
+  assert.equal((await snapshot(page)).settings.general.setupCompleted, true);
+
   stage('unpolished microphone output skips cleanup HTTP');
   await setLevel('none', false, 'balanced');
   await expect(page.locator('.writing-inactive')).toContainText('开启润色后生效，说明会保留。');
@@ -397,6 +464,9 @@ try {
   await closeInstance(app); app = undefined;
   launched = await launch(); app = launched.instance; page = launched.page;
   current = await snapshot(page);
+  assert.equal(current.settings.general.setupCompleted, true);
+  assert.equal(await guide().count(), 0, 'A completed setup must not reopen the guide after a restart.');
+  await shell().waitFor({ state: 'visible', timeout: 15000 });
   assert.equal(current.settings.asr.hasApiKey, true); assert.equal(current.settings.cleanup.hasApiKey, true);
   assert.equal(current.settings.general.autoInsert, false); assert.equal(current.settings.shortcut.primary, 'Disabled');
   assert.equal(current.settings.cleanup.enabled, true); assert.equal(current.settings.writing.strength, 'balanced');
@@ -419,7 +489,7 @@ try {
   }
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio and secure storage are test doubles. No live provider, real microphone or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {
