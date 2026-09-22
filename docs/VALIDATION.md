@@ -1,6 +1,6 @@
-# Version 2.2.1 Validation
+# Version 2.3.0 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the bilingual interface, the user-facing README and the MIT license were verified on the source tree without a new package. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -92,32 +92,33 @@ Requested after the live GitHub verification recorded above. Source changes: `sr
 - The 2.2.1 packages themselves were not pointed at the live GitHub endpoint; the live observations above used the packaged 2.2.0 build and checker code that did not change in 2.2.1. A 2.2.0 installation showing the 有新版本 2.2.1 pill after Release v2.2.1 is published has not been observed yet.
 - The 2.2.0 limits (asset rule coverage, unphotographed `downloading` / `error` states, Windows runtime) still apply.
 
-## Bilingual interface, user-facing README and MIT license (source tree, 2026-09-23)
+## Bilingual interface, user-facing README and MIT license (2.3.0, 2026-09-23)
 
-Requested after 2.2.1: every piece of interface copy in Chinese and English with a user-facing switch, a short README for GitHub visitors with the build content moved to [Development](DEVELOPMENT.md), and the MIT license. Specified in [UI design](UI_DESIGN.md) section 14. Dictation, providers, storage and the guide flow are unchanged; the settings schema gains `general.language` (default `zh`). No package was built for this change; the checks below ran on the source tree.
+Requested after 2.2.1: every piece of interface copy in Chinese and English with a user-facing switch, a short README for GitHub visitors with the build content moved to [Development](DEVELOPMENT.md), and the MIT license. Specified in [UI design](UI_DESIGN.md) section 14. Dictation, providers, storage and the guide flow are unchanged; the settings schema gains `general.language` (default `zh`). The maintainer then re-read every English string against its Chinese source and revised 26 of them (wording, badge length, US spelling) before the 2.3.0 packages were built; the rows below are the runs on that final source.
 
 | Check | Result and scope |
 | --- | --- |
 | Source and build | `npm run typecheck` clean. `npm run build` completed its native, typecheck, Vite and esbuild steps before the Electron runs. `grep` finds no Chinese string literal outside `src/renderer/i18n/messages/` and the main process's tray-menu table; the remaining Chinese in source is comments naming labels. |
-| Automated regressions | `npm test`: **115 tests in 13 files passed** (109 before). New `tests/i18n.test.ts` checks that both languages hold the same keys with non-empty text, that no English string contains CJK (apart from the language name 中文), that placeholders match, and that `translate()` fills them. `tests/session-presentation.test.ts` passes the language and adds an English case; `tests/core-store.test.ts` rejects an unknown language and reloads a saved one. |
-| Desktop integration | `npm run test:desktop`: **41 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-EWKlkI/result.json`](../.local/desktop-e2e-EWKlkI/result.json). New checks: `welcome-language-toggle` (during the guide rerun the welcome link switches to English, the guide's `aria-label` becomes `Setup guide` and the heading `Welcome to Typeless`, then back) and `language-switch-english-pages` (on 基本设置 the 语言 control switches to English; the navigation is `Main navigation`, `document.documentElement.lang` is `en`, the 关于 row shows its English state, and the three pages at 880 × 600 neither overflow horizontally nor show any Chinese text other than the 中文 option; switching back restores `主导航` and `zh-CN`). Two earlier attempts failed on the stage's own assumptions (the restart before it had reset the release check, and the 中文 option label is legitimately Chinese); both were assertion fixes, not source changes. Every earlier check remains, in Chinese. |
-| Delivery | `npm run test:delivery` on the same source: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-UW54wD/result.json`](../.local/delivery-e2e-UW54wD/result.json). |
-| Visual review | The English 首页, AI Setup and 基本设置 screenshots from the desktop run were inspected at the minimum window: the dictation card title wraps to two lines and nothing overflows. [首页 in English](screenshots/home-en.png) and [AI Setup in English](screenshots/settings-ai-en.png) are kept. |
+| Automated regressions | `npm test`: **115 tests in 13 files passed** (109 before); `native/bin/typeless-native --self-test` passed. New `tests/i18n.test.ts` checks that both languages hold the same keys with non-empty text, that no English string contains CJK (apart from the language name 中文), that placeholders match, and that `translate()` fills them. `tests/session-presentation.test.ts` passes the language and adds an English case; `tests/core-store.test.ts` rejects an unknown language and reloads a saved one. |
+| Development desktop integration | `npm run test:desktop` on the final source: **41 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-fKUB4q/result.json`](../.local/desktop-e2e-fKUB4q/result.json) (an earlier pass on the pre-review copy: [`.local/desktop-e2e-EWKlkI`](../.local/desktop-e2e-EWKlkI/result.json)). New checks: `welcome-language-toggle` (during the guide rerun the welcome link switches to English, the guide's `aria-label` becomes `Setup guide` and the heading `Welcome to Typeless`, then back) and `language-switch-english-pages` (on 基本设置 the 语言 control switches to English; the navigation is `Main navigation`, `document.documentElement.lang` is `en`, the 关于 row shows its English state, and the three pages at 880 × 600 neither overflow horizontally nor show any Chinese text other than the 中文 option; switching back restores `主导航` and `zh-CN`). Two earlier attempts failed on the stage's own assumptions (the restart before it had reset the release check, and the 中文 option label is legitimately Chinese); both were assertion fixes, not source changes. Every earlier check remains, in Chinese. |
+| Development delivery | `npm run test:delivery` on the final source: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-Uw3d5p/result.json`](../.local/delivery-e2e-Uw3d5p/result.json). |
+| Packaged macOS desktop integration | Application launched from the read-only mounted 2.3.0 DMG: **41 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-BC0V2n/result.json`](../.local/desktop-e2e-BC0V2n/result.json), including both language checks. |
+| Packaged macOS delivery | Same mounted application: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-KKSLUr/result.json`](../.local/delivery-e2e-KKSLUr/result.json). |
+| Visual review | The English 首页, AI Setup and 基本设置 screenshots from the desktop run were inspected at the minimum window: nothing overflows and the dictation card title fits on one line after the wording review. [首页 in English](screenshots/home-en.png) and [AI Setup in English](screenshots/settings-ai-en.png) are kept; [基本设置](screenshots/settings-basic.png) was refreshed from the 2.3.0 run. |
 
 ### Limits of this record
 
-- The English copy was reviewed by reading, not by an English-speaking user; wording may still be improved.
+- The English copy was reviewed twice by reading (once per string against its Chinese source), not by an English-speaking user.
 - The tray menu and the capsule context menu follow the setting, but no automated test drives a tray menu; the rebuild was verified by reading the code.
-- The published 2.2.1 packages predate this change and remain Chinese-only.
 
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.2.1-arm64.dmg) | Verified | 131,062,595 | `431084f80cc233ea810e62cdf39adecff35e163818489cc405188790239ea1fc` |
-| [Windows x64 portable ZIP](../release/Typeless-2.2.1-win.zip) | Integrity verified | 157,576,429 | `01cfa3a070b340e376a6e231b95c2ee78ebb493a1be9e1610487d3a29984cd30` |
+| [macOS arm64 DMG](../release/Typeless-2.3.0-arm64.dmg) | Verified | 131,066,096 | `48b0f2fc9860aa5859d4e0a816c876b228eab2b1f96d68d2bc13f7b51aa9125b` |
+| [Windows x64 portable ZIP](../release/Typeless-2.3.0-win.zip) | Integrity verified | 157,584,776 | `525ad0cddf74949b36998c1e6f41340043fc627b8990a4f692c1edfc971fb42c` |
 
-The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.2.1 and a minimum macOS of 13.0, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.3.0 and a minimum macOS of 13.0, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
 
 The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file, and `resources/app.asar` is byte-identical to the macOS bundle's. macOS is ad-hoc signed without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 
@@ -142,12 +143,12 @@ Both Electron harnesses create isolated `.local/` profiles and use fake audio, m
 cd path/to/Typeless
 npm run package:mac
 npm run package:win
-hdiutil verify release/Typeless-2.2.1-arm64.dmg
+hdiutil verify release/Typeless-2.3.0-arm64.dmg
 codesign --verify --deep --strict --verbose=2 release/mac-arm64/Typeless.app
-unzip -t release/Typeless-2.2.1-win.zip
-shasum -a 256 release/Typeless-2.2.1-arm64.dmg release/Typeless-2.2.1-win.zip
+unzip -t release/Typeless-2.3.0-win.zip
+shasum -a 256 release/Typeless-2.3.0-arm64.dmg release/Typeless-2.3.0-win.zip
 mkdir -p .cache/dmg-acceptance
-hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.2.1-arm64.dmg
+hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.3.0-arm64.dmg
 codesign --verify --deep --strict --verbose=2 .cache/dmg-acceptance/Typeless.app
 TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:desktop
 TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:delivery

@@ -1,6 +1,6 @@
 # Typeless: current product scope and implementation plan
 
-Date: 2026-09-18, revised 2026-09-22. Target version: 2.2.1. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
+Date: 2026-09-18, revised 2026-09-23. Target version: 2.3.0. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
 
 ## Product direction
 
@@ -96,6 +96,6 @@ Implementation and validation are separate. Required checks include:
 
 Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Version 2.2.1 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest; it never replaces itself, because ad-hoc signed builds must be reinstalled and re-authorized by hand. The [development guide](DEVELOPMENT.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
+Version 2.3.0 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest; it never replaces itself, because ad-hoc signed builds must be reinstalled and re-authorized by hand. The [development guide](DEVELOPMENT.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
 Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

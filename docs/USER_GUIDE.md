@@ -4,7 +4,7 @@ This guide describes the reduced dictation interface. UI labels are shown in Chi
 
 ## Open the application
 
-The 2.2.1 package output locations are [Typeless-2.2.1-arm64.dmg](../release/Typeless-2.2.1-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.1-win.zip](../release/Typeless-2.2.1-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized, so macOS warns on first launch that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact; SmartScreen may ask for confirmation because the build is unsigned.
+The 2.3.0 package output locations are [Typeless-2.3.0-arm64.dmg](../release/Typeless-2.3.0-arm64.dmg) for Apple silicon macOS and [Typeless-2.3.0-win.zip](../release/Typeless-2.3.0-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized, so macOS warns on first launch that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact; SmartScreen may ask for confirmation because the build is unsigned.
 
 To run from source, follow the [development guide](DEVELOPMENT.md). The first run contains no API keys.
 
