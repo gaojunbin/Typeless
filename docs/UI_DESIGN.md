@@ -10,7 +10,7 @@ Goals
 
 - Replace the current single-column tabbed window with the official Typeless desktop shell: light sidebar with pill-selected navigation, large page titles, grouped setting rows with a left label/description and a right-aligned control, blue switches, bordered dropdowns, key chips, black pill primary buttons, gray information cards, and a black floating voice capsule.
 - Keep every existing capability, action, setting, error route and accessibility hook. This is a re-skin plus an information-architecture change, not a feature change.
-- Chinese UI copy stays; existing copy is kept unless this document specifies new copy.
+- Chinese UI copy stays and is the default; every string also exists in English in the message catalogue (`src/renderer/i18n/messages/`), and the language switch is specified in section 14. Existing copy is kept unless this document specifies new copy.
 
 Non-goals
 
@@ -510,3 +510,34 @@ Under the control: when `releaseUrl` is present a `.text-button` "更新说明" 
 2. `npm run test:desktop` passes with three tabs, the 润色 controls under AI 配置, the Home status list, and an update stage driven by `TYPELESS_UPDATE_URL` pointing at the harness mock server (a fake `99.0.0` release whose asset is a small file served by the same server): 检查更新 → 有新版本 99.0.0 → 下载更新 → 已下载, and the file exists under the profile's `downloads/`. `npm run test:delivery` passes.
 3. Every page and guide step renders at 880×600 without horizontal scrolling; no page shows a coloured backdrop or gradient card.
 4. Screenshots of 首页, AI 配置, 基本设置 and the guide are refreshed in `docs/screenshots/`.
+
+## 14. Interface language (2026-09-23)
+
+Requested after 2.2.1: the whole interface in Chinese or English, switchable by the user. Behaviour, layout and colour do not change; this section adds the setting, the switch and the copy catalogue.
+
+### 14.1 Setting
+
+- `settings.general.language: 'zh' | 'en'`, default `'zh'`. The store rejects any other value; a `state.json` written before the field existed loads as `'zh'`.
+- `main.tsx` wraps the shell, the guide and the capsule in `I18nProvider` and sets `document.documentElement.lang` to `zh-CN` or `en`. The main process rebuilds the tray menu and the capsule context menu from the same setting whenever a snapshot is published.
+
+### 14.2 Catalogue
+
+- `src/renderer/i18n/index.ts`: `useI18n()` returns `{ language, t }`; `translate(language, key, params)` serves modules without React context (`sessionPresentation.ts`, `bridge.ts`). Placeholders are `{name}`.
+- One file per area under `i18n/messages/`: `common` (destinations, shell toasts, writing levels, protocol names, language names), `home` (首页, dictation card, session labels, capsule), `session` (recovery and warning copy by error code), `settings`, `onboarding`. Each is declared with `defineMessages({ zh, en })`, so the two objects must share exactly the same keys; `tests/i18n.test.ts` additionally checks that placeholders match and that no English string contains CJK.
+- Module-level tables hold keys, not text: `pages[].labelKey`, `writingLevels[].labelKey/hintKey`, `sessionLabelKeys`, the permission card models and the step list of the guide.
+- Chinese copy is unchanged character for character; the accessibility hooks in section 10 and the e2e selectors therefore keep working in the default language. In English the same hooks read `Main navigation`, `Setup guide`, `Setup progress`, `Dictation`, `Language`.
+
+### 14.3 Switches
+
+- **基本设置 → 通用**: the first row is **语言** (`Language`), a `Segmented` control with the options **中文** and **English**, always written in their own language. It saves through `useSettingDraft` like the switches beside it, with the same saving / retry status, and the new language applies as soon as the snapshot returns.
+- **Setup guide → welcome**: under **跳过向导** a `.text-button.setup-language` in `--text-secondary` shows the other language's name and saves it on click, so a first-time user can switch before granting anything. Nothing else on the welcome card moves.
+
+### 14.4 English copy
+
+Sentence case, short, no exclamation marks. Destinations are Home, AI Setup and Settings. System terms follow Apple's English names: Accessibility, Input Monitoring, System Settings, Privacy & Security. Product terms: Speech recognition, Text polishing, Polishing level (No polishing / Light polishing / Strong polishing), Personal instructions, Shortcut, System input helper, Setup guide, Check for updates, Up to date, Version {version} available, Download update, Open installer, Release notes.
+
+### 14.5 Acceptance
+
+- `npm test` includes the catalogue checks and the store's language validation.
+- `npm run test:desktop` switches to English on 基本设置, asserts the navigation, the 关于 row and the document language, checks the three pages at the 880 × 600 minimum for horizontal overflow and for any remaining Chinese text, photographs them, switches back, and toggles the language on the welcome screen during the guide rerun.
+

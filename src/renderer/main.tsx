@@ -13,14 +13,18 @@ import { Providers } from './settings/Providers';
 import { BasicSettings } from './settings/Preferences';
 import type { Page, RunAction, SettingsTab } from './settings/types';
 import { Busy } from './ui';
+import { documentLanguage, I18nProvider, translate, type MessageKey } from './i18n';
 import { VoiceOverlay } from './VoiceOverlay';
 import { Sidebar } from './Sidebar';
 import { Home } from './Home';
 import { SetupGuide } from './onboarding/SetupGuide';
 
+/** A toast is either a message key, translated when rendered, or literal text that came from the main process. */
+type Toast = { key: MessageKey } | { text: string } | null;
+
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState<Toast>(null);
   const [page, setPage] = useState<Page | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastFailure = useRef('');
@@ -42,7 +46,7 @@ function App() {
       if (failure && failure !== lastFailure.current) setPage('home');
       lastFailure.current = failure;
     };
-    void bridge.getSnapshot().then(receive).catch(() => setError('无法连接应用，请重新打开。'));
+    void bridge.getSnapshot().then(receive).catch(() => setToast({ key: 'common.shell.connectFailed' }));
     const unsubscribe = bridge.subscribe(receive);
     const releaseCapture = !overlay && !isPreview ? installCapture(bridge) : () => {};
     const releaseSounds = !overlay && !isPreview ? installInteractionSounds(bridge) : () => {};
@@ -50,17 +54,21 @@ function App() {
   }, [overlay]);
   const platform = snapshot?.platform;
   useEffect(() => { if (platform) document.body.dataset.platform = platform; }, [platform]);
+  const language = snapshot?.settings.general.language ?? 'zh';
+  useEffect(() => { document.documentElement.lang = documentLanguage(language); }, [language]);
   const run: RunAction = async action => {
     try {
       const result = await bridge.dispatch(action);
       clearTimeout(toastTimer.current);
       if (!result.ok || (result.message && !action.type.startsWith('dictation.'))) {
-        setError(action.type.startsWith('dictation.') ? action.type === 'dictation.copy' ? '复制失败，请重试。' : '听写未完成，请查看上方提示。' : result.message || '操作未完成，请重试。');
-        toastTimer.current = setTimeout(() => setError(''), 6000);
-      } else setError('');
+        setToast(action.type.startsWith('dictation.')
+          ? { key: action.type === 'dictation.copy' ? 'common.shell.copyFailed' : 'common.shell.dictationIncomplete' }
+          : result.message ? { text: result.message } : { key: 'common.shell.actionFailed' });
+        toastTimer.current = setTimeout(() => setToast(null), 6000);
+      } else setToast(null);
       return result.ok;
     } catch {
-      setError('连接中断，请重试。');
+      setToast({ key: 'common.shell.connectionLost' });
       return false;
     }
   };
@@ -68,27 +76,30 @@ function App() {
     setPage(next);
     requestAnimationFrame(() => document.getElementById(`settings-tab-${next}`)?.focus());
   };
-  if (!snapshot) return overlay ? null : <div className="loading"><Busy /><p>{error || '正在打开 Typeless…'}</p></div>;
-  if (overlay) return <VoiceOverlay snapshot={snapshot} run={run} />;
-  const toast = error
-    ? <div className="toast" role="alert"><CircleAlert size={18} aria-hidden="true" /><span>{error}</span><button type="button" className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15} /></button></div>
+  const toastText = toast ? ('key' in toast ? translate(language, toast.key) : toast.text) : '';
+  if (!snapshot) return overlay ? null : <div className="loading"><Busy /><p>{toastText || translate(language, 'common.shell.opening')}</p></div>;
+  if (overlay) return <I18nProvider language={language}><VoiceOverlay snapshot={snapshot} run={run} /></I18nProvider>;
+  const toastNode = toastText
+    ? <div className="toast" role="alert"><CircleAlert size={18} aria-hidden="true" /><span>{toastText}</span><button type="button" className="icon-button" aria-label={translate(language, 'common.shell.dismiss')} onClick={() => setToast(null)}><X size={15} /></button></div>
     : null;
-  if (!snapshot.settings.general.setupCompleted) return <><SetupGuide snapshot={snapshot} run={run} />{toast}</>;
+  if (!snapshot.settings.general.setupCompleted) return <I18nProvider language={language}><SetupGuide snapshot={snapshot} run={run} />{toastNode}</I18nProvider>;
   const current: Page = page ?? 'home';
-  return <div className="app-shell">
-    <Sidebar page={current} onNavigate={setPage} snapshot={snapshot} />
-    <main className="content">
-      <div className="content-inner">
-        {isPreview && <p className="preview-banner">界面预览 · 不调用模型或保存密钥</p>}
-        <div key={current} className={`page ${current === 'home' ? 'page-home' : ''}`.trim()} role="tabpanel" id={`settings-panel-${current}`} aria-labelledby={`settings-tab-${current}`}>
-          {current === 'home' ? <Home snapshot={snapshot} run={run} openSettings={openSettings} />
-            : current === 'ai' ? <Providers snapshot={snapshot} run={run} />
-            : <BasicSettings snapshot={snapshot} run={run} />}
+  return <I18nProvider language={language}>
+    <div className="app-shell">
+      <Sidebar page={current} onNavigate={setPage} snapshot={snapshot} />
+      <main className="content">
+        <div className="content-inner">
+          {isPreview && <p className="preview-banner">{translate(language, 'common.shell.previewBanner')}</p>}
+          <div key={current} className={`page ${current === 'home' ? 'page-home' : ''}`.trim()} role="tabpanel" id={`settings-panel-${current}`} aria-labelledby={`settings-tab-${current}`}>
+            {current === 'home' ? <Home snapshot={snapshot} run={run} openSettings={openSettings} />
+              : current === 'ai' ? <Providers snapshot={snapshot} run={run} />
+              : <BasicSettings snapshot={snapshot} run={run} />}
+          </div>
         </div>
-      </div>
-    </main>
-    {toast}
-  </div>;
+      </main>
+      {toastNode}
+    </div>
+  </I18nProvider>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

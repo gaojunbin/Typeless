@@ -1,6 +1,7 @@
 import { Check, CircleAlert, X } from 'lucide-react';
 import type { AppSnapshot } from '../shared/contracts';
 import type { RunAction } from './settings/types';
+import { useI18n } from './i18n';
 import { recoveryMessage } from './sessionPresentation';
 import './styles/overlay.css';
 
@@ -29,6 +30,7 @@ function remainingText(milliseconds: number) {
 
 export function VoiceOverlay({ snapshot, run }: { snapshot: AppSnapshot; run: RunAction }) {
   const { session } = snapshot;
+  const { t, language } = useI18n();
   const recording = session.status === 'recording';
   const processing = ['transcribing', 'polishing', 'inserting'].includes(session.status);
   if (recording || processing) {
@@ -38,20 +40,20 @@ export function VoiceOverlay({ snapshot, run }: { snapshot: AppSnapshot; run: Ru
       className={`voice-pill ${processing ? 'processing' : ''} ${counting ? 'counting' : ''}`.trim()}
       role="status"
       aria-live="polite"
-      aria-label={recording ? '正在录音' : '正在处理'}
+      aria-label={t(recording ? 'home.session.recording' : 'home.overlay.processing')}
     >
-      <button type="button" className="voice-control voice-cancel" aria-label="取消听写" onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'dictation.cancel' }); }}><X size={16} strokeWidth={2.5} /></button>
-      {recording ? <CapsuleWave level={session.level} /> : <div className="voice-loading"><span className="voice-label">思考中</span><i className="voice-wash" /></div>}
+      <button type="button" className="voice-control voice-cancel" aria-label={t('home.dictation.cancel')} onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'dictation.cancel' }); }}><X size={16} strokeWidth={2.5} /></button>
+      {recording ? <CapsuleWave level={session.level} /> : <div className="voice-loading"><span className="voice-label">{t('home.overlay.thinking')}</span><i className="voice-wash" /></div>}
       {counting && <span className="voice-timer">{remainingText(remainingMs)}</span>}
-      {recording && <button type="button" className="voice-control voice-finish" aria-label="完成听写" onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'dictation.toggle' }); }}><Check size={16} strokeWidth={2.5} /></button>}
+      {recording && <button type="button" className="voice-control voice-finish" aria-label={t('home.overlay.finish')} onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'dictation.toggle' }); }}><Check size={16} strokeWidth={2.5} /></button>}
     </div>;
   }
   const delivered = session.copied || session.delivery === 'copied' || session.delivery === 'confirmed' || session.delivery === 'dispatched';
   const configurationResolved = session.errorCode === 'provider_not_configured' && snapshot.settings.asr.hasApiKey && Boolean(snapshot.settings.asr.model.trim());
   const recovery = (session.status === 'error' && !configurationResolved) || (session.status === 'ready' && !delivered);
   if (!recovery) return null;
-  const message = recoveryMessage(session);
-  return <button type="button" className="voice-recovery" aria-label="查看听写问题" title={message} onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'window.show' }); }}>
+  const message = recoveryMessage(session, language);
+  return <button type="button" className="voice-recovery" aria-label={t('home.overlay.viewProblem')} title={message} onMouseDown={event => event.preventDefault()} onClick={() => { void run({ type: 'window.show' }); }}>
     <CircleAlert size={16} aria-hidden="true" />
     <span>{message}</span>
   </button>;

@@ -15,7 +15,7 @@ The user authorized implementation after the initial research phase. This checkl
 
 ## Required integrated output
 
-Use `docs/PROPOSAL.md` for the product/design contract, `README.md` for build and artifact entry points, `docs/USER_GUIDE.md` for actual first-run behavior, and `docs/VALIDATION.md` for evidence. Keep research recommendations distinct from the implemented architecture.
+Use `docs/PROPOSAL.md` for the product/design contract, `docs/DEVELOPMENT.md` for build and artifact entry points, `docs/USER_GUIDE.md` for actual first-run behavior, and `docs/VALIDATION.md` for evidence. Keep research recommendations distinct from the implemented architecture.
 
 1. Give a clear recommended product and technical direction before listing alternatives.
 2. Map every user requirement to a design component, a delivery phase, and an acceptance criterion.

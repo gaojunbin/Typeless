@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import type { RunAction } from '../settings/types';
 
 const copiedLabelMs = 2000;
@@ -8,6 +9,7 @@ const copiedLabelMs = 2000;
  * Shared by the stale permission card and the 系统权限 group, so both read the same copy.
  */
 export function DiagnosticsButton({ run, className = 'secondary' }: { run: RunAction; className?: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -17,5 +19,5 @@ export function DiagnosticsButton({ run, className = 'secondary' }: { run: RunAc
     setCopied(true);
     timer.current = setTimeout(() => setCopied(false), copiedLabelMs);
   };
-  return <button type="button" className={className} onClick={() => { void copy(); }}>{copied ? '已复制' : '复制诊断信息'}</button>;
+  return <button type="button" className={className} onClick={() => { void copy(); }}>{t(copied ? 'common.copied' : 'common.copyDiagnostics')}</button>;
 }

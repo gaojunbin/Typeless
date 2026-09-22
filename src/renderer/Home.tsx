@@ -3,6 +3,7 @@ import { ChevronRight, Keyboard, Mic, PenLine } from 'lucide-react';
 import type { AppSnapshot } from '../shared/contracts';
 import type { RunAction, SettingsTab } from './settings/types';
 import { PageHeader, StatusBadge } from './ui';
+import { useI18n } from './i18n';
 import { shortcutLabel } from './shortcutPresentation';
 import { DictationPanel } from './DictationPanel';
 import { writingLevel, writingLevels } from './writingPresentation';
@@ -24,41 +25,43 @@ function StatusRow({ icon, label, detail, tone, badge, onOpen }: { icon: ReactNo
 
 export function Home({ snapshot, run, openSettings }: { snapshot: AppSnapshot; run: RunAction; openSettings: (tab: SettingsTab) => void }) {
   const { settings, permissions, platform } = snapshot;
-  const asrProtocol = settings.asr.kind === 'mimo' ? '小米 MiMo' : 'OpenAI 兼容';
+  const { t } = useI18n();
+  const asrProtocol = t(settings.asr.kind === 'mimo' ? 'common.protocol.mimo' : 'common.protocol.openai');
   const asrReady = settings.asr.hasApiKey && Boolean(settings.asr.model.trim());
   const level = writingLevel(settings);
-  const levelLabel = writingLevels.find(item => item.value === level)?.label ?? '';
+  const levelItem = writingLevels.find(item => item.value === level);
+  const levelLabel = levelItem ? t(levelItem.labelKey) : '';
   const cleanupReady = settings.cleanup.hasApiKey && Boolean(settings.cleanup.model.trim());
   const off = settings.shortcut.primary.toLowerCase() === 'disabled';
   const shortcut = off ? settings.shortcut.fallback : settings.shortcut.primary;
   const available = off ? permissions.fallbackShortcutAvailable : permissions.primaryShortcutAvailable;
   const silent = shortcut.toLowerCase() === 'disabled';
   return <>
-    <PageHeader title="说话，不打字" />
+    <PageHeader title={t('home.title')} />
     <DictationPanel snapshot={snapshot} run={run} openSettings={openSettings} />
     <div className="status-list">
       <StatusRow
         icon={<Mic size={20} strokeWidth={1.5} aria-hidden="true" />}
-        label="语音识别"
-        detail={asrReady ? [asrProtocol, settings.asr.model.trim()].filter(Boolean).join(' · ') : '待配置'}
+        label={t('home.status.asr')}
+        detail={asrReady ? [asrProtocol, settings.asr.model.trim()].filter(Boolean).join(' · ') : t('home.status.pending')}
         tone={asrReady ? 'ok' : 'warn'}
-        badge={asrReady ? '已连接' : '待配置'}
+        badge={t(asrReady ? 'home.status.connected' : 'home.status.pending')}
         onOpen={() => openSettings('ai')}
       />
       <StatusRow
         icon={<PenLine size={20} strokeWidth={1.5} aria-hidden="true" />}
-        label="文字润色"
-        detail={level === 'none' ? levelLabel : cleanupReady ? [levelLabel, settings.cleanup.model.trim()].filter(Boolean).join(' · ') : '未配置润色模型'}
+        label={t('home.status.cleanup')}
+        detail={level === 'none' ? levelLabel : cleanupReady ? [levelLabel, settings.cleanup.model.trim()].filter(Boolean).join(' · ') : t('home.status.noCleanupModel')}
         tone={level === 'none' ? 'muted' : cleanupReady ? 'ok' : 'warn'}
-        badge={level === 'none' ? '已关闭' : cleanupReady ? '已连接' : '未配置'}
+        badge={t(level === 'none' ? 'home.status.off' : cleanupReady ? 'home.status.connected' : 'home.status.notConfigured')}
         onOpen={() => openSettings('ai')}
       />
       <StatusRow
         icon={<Keyboard size={20} strokeWidth={1.5} aria-hidden="true" />}
-        label="快捷键"
-        detail={silent ? '已关闭' : shortcutLabel(shortcut, platform === 'darwin')}
+        label={t('home.status.shortcut')}
+        detail={silent ? t('home.status.off') : shortcutLabel(shortcut, platform === 'darwin')}
         tone={silent ? 'muted' : available ? 'ok' : 'warn'}
-        badge={silent ? '已关闭' : available ? '已就绪' : '不可用'}
+        badge={t(silent ? 'home.status.off' : available ? 'home.status.ready' : 'home.status.unavailable')}
         onOpen={() => openSettings('basic')}
       />
     </div>

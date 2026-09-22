@@ -2,15 +2,16 @@ import '../styles/providers.css';
 import { useEffect, useRef, useState } from 'react';
 import { Mic, PenLine } from 'lucide-react';
 import { PageHeader, SectionGroup, SettingRow } from '../ui';
+import { useI18n, type MessageKey } from '../i18n';
 import type { SettingsSectionProps } from './types';
 import { WritingInstructionsRow, WritingLevelRow } from './Writing';
 
 type Provider = 'asr' | 'cleanup';
 interface ProviderDraft { baseUrl: string; model: string; kind: 'mimo' | 'openai' }
-const protocols = [
-  { value: 'mimo', title: '小米 MiMo', description: '音频以 Base64 发送到 chat/completions' },
-  { value: 'openai', title: 'OpenAI 兼容', description: 'multipart 上传到 audio/transcriptions' },
-] as const;
+const protocols: readonly { value: 'mimo' | 'openai'; titleKey: MessageKey; descriptionKey: MessageKey }[] = [
+  { value: 'mimo', titleKey: 'common.protocol.mimo', descriptionKey: 'settings.providers.protocol.mimo.description' },
+  { value: 'openai', titleKey: 'common.protocol.openai', descriptionKey: 'settings.providers.protocol.openai.description' },
+];
 
 // Pages unmount when the sidebar switches, so unsaved provider edits are kept here and restored on return.
 const retainedDrafts: Partial<Record<Provider, { draft: ProviderDraft; key: string }>> = {};
@@ -21,6 +22,7 @@ function endpointChanged(current: string, saved: string) {
 }
 
 function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { provider: Provider }) {
+  const { t } = useI18n();
   const speech = provider === 'asr';
   const saved = snapshot.settings[provider];
   const savedKind = speech ? snapshot.settings.asr.kind : 'openai';
@@ -47,28 +49,28 @@ function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { prov
     try {
       const ok = await run({ type: 'settings.save', patch: { [provider]: settings }, ...(cleanKey ? { secrets: { [provider]: cleanKey } } : {}) });
       if (ok) { edited.current = false; delete retainedDrafts[provider]; setKey(''); }
-      else setError('保存失败，请检查服务配置后重试。');
-    } catch { setError('保存失败，请重试。'); }
+      else setError(t('settings.providers.saveRejected'));
+    } catch { setError(t('settings.providers.saveFailed')); }
     finally { setBusy(false); }
   }
   async function deleteKey() {
     setBusy(true); setError('');
     try {
       if (await run({ type: 'settings.save', patch: {}, secrets: { [provider]: '' } })) setKey('');
-      else setError('删除失败，请重试。');
-    } catch { setError('删除失败，请重试。'); }
+      else setError(t('settings.providers.removeFailed'));
+    } catch { setError(t('settings.providers.removeFailed')); }
     finally { setBusy(false); }
   }
-  const keyHint = originChanged && saved.hasApiKey ? '地址或协议已变更，请重新输入密钥。'
-    : saved.hasApiKey ? '已保存；留空保留。' : '密钥仅保存在本机，不会回显。';
+  const keyHint = t(originChanged && saved.hasApiKey ? 'settings.providers.key.hint.reenter'
+    : saved.hasApiKey ? 'settings.providers.key.hint.stored' : 'settings.providers.key.hint.local');
   return <form className="provider-panel" onSubmit={event => { event.preventDefault(); void save(); }}>
-    <SectionGroup icon={speech ? <Mic size={20} strokeWidth={1.5} /> : <PenLine size={20} strokeWidth={1.5} />} title={speech ? '语音识别' : '文字润色'}>
+    <SectionGroup icon={speech ? <Mic size={20} strokeWidth={1.5} /> : <PenLine size={20} strokeWidth={1.5} />} title={t(speech ? 'settings.providers.asr.title' : 'settings.providers.cleanup.title')}>
       {!speech && <><WritingLevelRow snapshot={snapshot} run={run} /><div className="provider-divider" /></>}
       <fieldset disabled={busy}>
         {speech && <SettingRow
           stacked
-          label="语音协议"
-          control={<div className="option-cards" role="radiogroup" aria-label="语音协议">
+          label={t('settings.providers.protocol.label')}
+          control={<div className="option-cards" role="radiogroup" aria-label={t('settings.providers.protocol.label')}>
             {protocols.map(option => <button
               key={option.value}
               type="button"
@@ -76,29 +78,29 @@ function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { prov
               aria-checked={draft.kind === option.value}
               className="option-card"
               onClick={() => change({ kind: option.value })}
-            ><strong>{option.title}</strong><span>{option.description}</span></button>)}
+            ><strong>{t(option.titleKey)}</strong><span>{t(option.descriptionKey)}</span></button>)}
           </div>}
         />}
         <SettingRow
-          label={speech ? '语音服务地址' : '润色服务地址'}
+          label={t(speech ? 'settings.providers.asr.endpoint' : 'settings.providers.cleanup.endpoint')}
           htmlFor={`${provider}-base-url`}
-          description="填写服务根地址，不要包含 /chat/completions。"
+          description={t('settings.providers.endpoint.description')}
           control={<input id={`${provider}-base-url`} type="url" required value={draft.baseUrl} onChange={event => change({ baseUrl: event.target.value })} placeholder="https://api.example.com/v1" />}
         />
         <SettingRow
-          label={speech ? '语音模型' : '润色模型'}
+          label={t(speech ? 'settings.providers.asr.model' : 'settings.providers.cleanup.model')}
           htmlFor={`${provider}-model`}
-          control={<input id={`${provider}-model`} value={draft.model} onChange={event => change({ model: event.target.value })} placeholder="模型名称" />}
+          control={<input id={`${provider}-model`} value={draft.model} onChange={event => change({ model: event.target.value })} placeholder={t('settings.providers.model.placeholder')} />}
         />
         <SettingRow
-          label={speech ? '语音 API 密钥' : '润色 API 密钥'}
+          label={t(speech ? 'settings.providers.asr.key' : 'settings.providers.cleanup.key')}
           htmlFor={`${provider}-key`}
-          control={<input id={`${provider}-key`} type="password" autoComplete="new-password" value={key} onChange={event => { setKey(event.target.value); edited.current = true; setError(''); }} placeholder={saved.hasApiKey ? '输入新密钥以更新' : '输入 API 密钥'} />}
+          control={<input id={`${provider}-key`} type="password" autoComplete="new-password" value={key} onChange={event => { setKey(event.target.value); edited.current = true; setError(''); }} placeholder={t(saved.hasApiKey ? 'settings.providers.key.placeholder.replace' : 'settings.providers.key.placeholder.new')} />}
           status={keyHint}
         />
         <div className="row-actions">
-          {saved.hasApiKey && <button className="text-button danger-text" type="button" onClick={() => { void deleteKey(); }}>删除密钥</button>}
-          <button className="primary" type="submit" disabled={!changed}>{busy ? '保存中…' : '保存'}</button>
+          {saved.hasApiKey && <button className="text-button danger-text" type="button" onClick={() => { void deleteKey(); }}>{t('settings.providers.removeKey')}</button>}
+          <button className="primary" type="submit" disabled={!changed}>{t(busy ? 'settings.providers.saving' : 'settings.providers.save')}</button>
         </div>
       </fieldset>
       {error && <p className="error-text" role="alert">{error}</p>}
@@ -108,10 +110,11 @@ function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { prov
 }
 
 export function Providers(props: SettingsSectionProps) {
+  const { t } = useI18n();
   return <>
-    <PageHeader title="AI 配置" subtitle="语音识别与文字润色分别连接你自己的模型服务，并在这里设置润色方式；密钥只保存在本机。" />
+    <PageHeader title={t('common.page.ai')} subtitle={t('settings.providers.subtitle')} />
     <ProviderForm {...props} provider="asr" />
     <ProviderForm {...props} provider="cleanup" />
-    <p className="providers-footnote">音频发送至语音服务；开启润色后，文字发送至润色服务。</p>
+    <p className="providers-footnote">{t('settings.providers.footnote')}</p>
   </>;
 }

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { AppSettings, SettingsPatch } from '../shared/contracts';
+import { languages, type AppSettings, type SettingsPatch } from '../shared/contracts';
 
 export interface SecretCrypto { available(): boolean; encrypt(value: string): string; decrypt(value: string): string }
 export const defaults = (): AppSettings => ({
@@ -9,7 +9,7 @@ export const defaults = (): AppSettings => ({
   writing: { strength: 'balanced', instructions: '', language: 'auto' },
   audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: true },
   shortcut: { primary: process.platform === 'win32' ? 'RightAlt' : 'Fn', fallback: 'CommandOrControl+Shift+Space' },
-  general: { launchAtLogin: false, autoInsert: true, setupCompleted: false },
+  general: { launchAtLogin: false, autoInsert: true, setupCompleted: false, language: 'zh' },
 });
 export const bounded = (value: unknown, max: number, label = 'Text'): string => {
   if (typeof value !== 'string' || value.length > max) throw new Error(`${label} must be text with at most ${max} characters.`);
@@ -39,6 +39,7 @@ function settingsPatch(current: AppSettings, patch: SettingsPatch): AppSettings 
   }
   endpointBase(next.asr.baseUrl); endpointBase(next.cleanup.baseUrl);
   if (!['mimo', 'openai'].includes(next.asr.kind) || !['light', 'balanced'].includes(next.writing.strength)) throw new Error('Unknown provider or writing mode.');
+  if (!languages.includes(next.general.language)) throw new Error('Unknown interface language.');
   if (!Number.isInteger(next.audio.maxDurationSeconds) || next.audio.maxDurationSeconds < 5 || next.audio.maxDurationSeconds > 120) throw new Error('Recording limit must be 5–120 seconds.');
   return next;
 }

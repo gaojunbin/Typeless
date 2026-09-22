@@ -407,6 +407,13 @@ try {
   await guide().waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await page.getByRole('navigation', { name: '主导航', exact: true }).count(), 0, 'The rerun guide must replace the shell.');
   assert.equal((await snapshot(page)).settings.general.setupCompleted, false);
+  await page.locator('.setup-language').click();
+  await page.locator('main.onboarding[aria-label="Setup guide"]').waitFor({ state: 'visible', timeout: 10000 });
+  await expect(page.getByRole('heading', { name: 'Welcome to Typeless' })).toBeVisible();
+  assert.equal((await snapshot(page)).settings.general.language, 'en');
+  await page.locator('.setup-language').click();
+  await guide().waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal((await snapshot(page)).settings.general.language, 'zh');
   await page.getByRole('button', { name: '跳过向导', exact: true }).click();
   await shell().waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await guide().count(), 0);
@@ -536,9 +543,30 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally.`);
     await page.screenshot({ path: join(dataRoot, `minimum-${file}.png`), fullPage: true, animations: 'disabled' });
   }
+  stage('language switch renders the shell in English and back');
+  await openTab('基本设置');
+  await page.getByRole('group', { name: '语言', exact: true }).getByRole('button', { name: 'English', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
+  assert.equal((await snapshot(page)).settings.general.language, 'en');
+  await expect(page.getByRole('group', { name: 'Language', exact: true }).getByRole('button', { name: 'English', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // The restart above reset the release check, so the row is back to its unchecked or freshly checked state.
+  await expect(page.locator('.about-row .badge')).toHaveText(/^(Not checked|Checking…|Version 99\.0\.0 available)$/);
+  await expect(page.getByRole('button', { name: /^(Check for updates|Checking…|Download update)$/ })).toBeVisible();
+  for (const [name, file] of [['Home', 'home'], ['AI Setup', 'ai'], ['Settings', 'basic']]) {
+    await page.getByRole('tab', { name, exact: true }).click();
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally in English.`);
+    // The language option 中文 is always written in its own language, so it is the one CJK string allowed here.
+    assert.equal(await page.evaluate(() => /[\u4e00-\u9fff]/.test(document.querySelector('main.content').innerText.replace(/中文/g, ''))), false, `${name} must not show Chinese copy in English.`);
+    await page.screenshot({ path: join(dataRoot, `english-${file}.png`), fullPage: true, animations: 'disabled' });
+  }
+  await page.getByRole('group', { name: 'Language', exact: true }).getByRole('button', { name: '中文', exact: true }).click();
+  await page.getByRole('navigation', { name: '主导航', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

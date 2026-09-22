@@ -1,14 +1,15 @@
 import { ChevronRight } from 'lucide-react';
 import type { AppSnapshot } from '../../shared/contracts';
+import { useI18n, type MessageKey } from '../i18n';
 import { grantedCards, permissionCards } from './permissionCards';
 
 export type SetupStep = 'permissions' | 'microphone' | 'shortcut' | 'done';
 
-const steps: readonly { id: SetupStep; label: string }[] = [
-  { id: 'permissions', label: '权限' },
-  { id: 'microphone', label: '麦克风' },
-  { id: 'shortcut', label: '快捷键' },
-  { id: 'done', label: '完成' },
+const steps: readonly { id: SetupStep; labelKey: MessageKey }[] = [
+  { id: 'permissions', labelKey: 'onboarding.step.permissions' },
+  { id: 'microphone', labelKey: 'onboarding.label.microphone' },
+  { id: 'shortcut', labelKey: 'onboarding.label.shortcut' },
+  { id: 'done', labelKey: 'onboarding.step.done' },
 ];
 
 /** Permission progress fills the first quarter of the bar as cards turn green. */
@@ -21,13 +22,14 @@ function completion(step: SetupStep, snapshot: AppSnapshot) {
 }
 
 export function Progress({ step, snapshot }: { step: SetupStep; snapshot: AppSnapshot }) {
+  const { t } = useI18n();
   const value = completion(step, snapshot);
   return <header className="setup-progress">
-    <nav aria-label="设置进度">
+    <nav aria-label={t('onboarding.progress.label')}>
       <ol>
         {steps.map((item, index) => <li key={item.id} aria-current={item.id === step ? 'step' : undefined}>
           {index > 0 && <ChevronRight size={14} aria-hidden="true" />}
-          <span>{item.label}</span>
+          <span>{t(item.labelKey)}</span>
         </li>)}
       </ol>
     </nav>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import type { SessionStatus } from '../shared/contracts';
+import type { MessageKey } from './i18n';
 import { shortcutLabel } from './shortcutPresentation';
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -72,6 +73,7 @@ export function Wave({ level, active, bars = 27 }: { level: number; active: bool
 }
 
 export const clockText = (milliseconds: number) => `${Math.floor(milliseconds / 60000).toString().padStart(2, '0')}:${Math.floor(milliseconds / 1000 % 60).toString().padStart(2, '0')}`;
-export const sessionLabels: Record<SessionStatus, string> = {
-  idle: '准备就绪', arming: '正在连接麦克风', recording: '正在录音', transcribing: '正在识别', polishing: '正在整理', inserting: '正在复制与粘贴', ready: '结果已就绪', error: '处理未完成', cancelled: '录音已取消',
+/** Message key for each session status; components resolve it through `useI18n()`. */
+export const sessionLabelKeys: Record<SessionStatus, MessageKey> = {
+  idle: 'home.session.idle', arming: 'home.session.arming', recording: 'home.session.recording', transcribing: 'home.session.transcribing', polishing: 'home.session.polishing', inserting: 'home.session.inserting', ready: 'home.session.ready', error: 'home.session.error', cancelled: 'home.session.cancelled',
 };

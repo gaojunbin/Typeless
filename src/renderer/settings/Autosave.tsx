@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Busy } from '../ui';
+import { useI18n } from '../i18n';
 
 export function useSettingDraft<T>(saved: T, save: (value: T) => Promise<boolean>) {
   const [value, setValue] = useState(saved);
@@ -41,8 +42,9 @@ export function useSettingDraft<T>(saved: T, save: (value: T) => Promise<boolean
 }
 
 export function SaveStatus({ status, retry }: { status: 'idle' | 'saving' | 'error'; retry: () => void }) {
+  const { t } = useI18n();
   if (status === 'idle') return null;
   return <span className="save-status" role="status">{status === 'saving'
-    ? <><Busy size={12} />正在保存…</>
-    : <>保存失败 <button type="button" className="text-button" onClick={retry}>重试</button></>}</span>;
+    ? <><Busy size={12} />{t('settings.autosave.saving')}</>
+    : <>{t('settings.autosave.failed')} <button type="button" className="text-button" onClick={retry}>{t('common.retry')}</button></>}</span>;
 }

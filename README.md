@@ -1,113 +1,62 @@
-# Typeless desktop
+<div align="center">
+  <img src="build/icon.png" width="128" height="128" alt="Typeless icon" />
+  <h1>Typeless</h1>
+  <p><b>说话，不打字。</b> Desktop dictation for macOS and Windows that runs on your own AI keys.</p>
+  <p>
+    <a href="https://github.com/gaojunbin/Typeless/releases/latest"><img src="https://img.shields.io/github/v/release/gaojunbin/Typeless?label=release" alt="Latest release" /></a>
+    <img src="https://img.shields.io/badge/platform-macOS%2013%2B%20%7C%20Windows%2010%2B-blue" alt="Platform: macOS 13+ and Windows 10+" />
+    <a href="https://github.com/gaojunbin/Typeless/releases"><img src="https://img.shields.io/github/downloads/gaojunbin/Typeless/total" alt="Downloads" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
+  </p>
+  <p><a href="https://github.com/gaojunbin/Typeless/releases/latest"><b>Download the latest release</b></a></p>
+</div>
 
-A personal AI dictation application for macOS and Windows. Tap a shortcut, speak, and tap again to finish. Results are automatically copied; optional automatic paste sends them to the application currently in front. Bring your own speech-recognition and text-processing API keys. The interface is Chinese; source code and documentation are English.
+Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-recognition service you configure, optionally tidies the transcript with a text model, copies the result and can paste it into whatever app is in front. There is no account, no server of ours and no transcript history: your API keys stay on your computer.
 
-This is an independent implementation, not the commercial Typeless service. Current artifacts, executed checks and remaining acceptance limits belong in [Validation](docs/VALIDATION.md). Research and mock-provider tests do not establish live recognition or polishing quality.
+![Typeless home page](docs/screenshots/home.png)
 
-## A two-column window
+## Features
 
-The main window is a two-column shell on a white background. A fixed sidebar carries the application mark (the same seven-bar waveform as the Dock icon) and three destinations; while a newer release is available it also shows a small **有新版本** pill that opens **基本设置**. The content column scrolls on its own. Colour is reserved for status badges.
+- **One key, anywhere.** Tap Fn on macOS or Right Alt on Windows to start and stop; a fallback chord (Command/Ctrl+Shift+Space) is always available.
+- **Your own models.** Speech recognition through Xiaomi MiMo or any OpenAI-compatible endpoint; polishing through any OpenAI-compatible chat model. Keys are encrypted with the operating system's secure storage.
+- **Polishing you control.** Choose 不润色, 轻度润色 or 强力润色 and add a free-text 个人表达说明 for names, terms and habits. The prompt asks the model to keep facts, names and numbers, and if polishing fails the raw transcript is still delivered.
+- **Copy first, paste optional.** Every result lands on the clipboard; 完成后自动粘贴 sends Command/Ctrl+V to the current app. Typeless never presses Enter.
+- **Guided setup.** The first launch walks through permissions, microphone and shortcut, then points you at the AI settings.
+- **Built-in update check.** 基本设置 → 关于 checks GitHub Releases, downloads the installer with checksum verification and opens it for you.
+- **Chinese or English.** The whole interface is available in both; switch on the welcome screen or under 基本设置 → 通用 → 语言.
 
-- **首页:** the **说话，不打字** title, the dictation card with its start/stop button, shortcut keycaps, recording waveform, recovery alert and current result, and a three-row status list (**语音识别**, **文字润色**, **快捷键**) whose rows open the matching destination. Nothing else repeats the shortcut or its status.
-- **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button; the speech connection also selects the **小米 MiMo** or **OpenAI 兼容** protocol. The **文字润色** form also holds the polishing level (**不润色**, **轻度润色**, **强力润色**) above the connection fields and the optional **个人表达说明** below them; both save on their own.
-- **基本设置:** rows grouped under **快捷键**, **音频**, **通用**, **系统权限** and **关于**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior, permission status, a **重新运行设置向导** button, a **复制诊断信息** button that puts the version, permissions and recent helper status on the clipboard, and the **版本** row with **检查更新**, which asks GitHub for the latest release, downloads its installer on request and then opens it for you (see below).
+The interface defaults to Chinese. Source code and documentation are in English.
 
-Switches, selectors and the polishing level save immediately. Text preferences save on blur or Enter; multiline instructions use blur or Command/Ctrl+Enter. A failed save remains visible and can be retried. There is no global Save action and no second navigation layer for settings. Provider credentials deliberately use an explicit atomic save rather than saving partially edited addresses or keys.
+## Install
 
-No polishing copies the original transcript without requesting the text model. Personal instructions remain saved but have no effect in this mode. Light polishing targets fillers and accidental repetitions. Strong polishing additionally targets self-corrections and redundancy while preserving facts, names, numbers, negation and uncertainty. New installations select strong polishing; actual output depends on the configured model. Cleanup failures retain and copy the original transcript with a warning.
+**macOS (Apple silicon, macOS 13 or later).** Download `Typeless-<version>-arm64.dmg`, drag Typeless into Applications and open it. The build is ad-hoc signed, so macOS warns that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. Grant the microphone and 辅助功能 when the setup guide asks.
 
-## First run and everyday dictation
+**Windows (x64, Windows 10 or later).** Download `Typeless-<version>-win.zip`, extract the whole folder and run `Typeless.exe`. The build is unsigned, so SmartScreen may ask you to confirm before it runs.
 
-A fresh installation opens the setup guide instead of the two-column shell. **欢迎使用 Typeless** offers **开始设置** or **跳过向导**, and the guide then walks four steps under a progress header:
+**Upgrading on macOS.** Each release has a new code identity. Quit Typeless, remove its entries under 系统设置 → 隐私与安全性 → 辅助功能 and 输入监控, install the new version and grant again.
 
-1. **权限:** one card per system permission, the microphone on both platforms plus macOS **辅助功能** for pasting and Fn listening or the bundled Windows input helper. **允许** requests a permission, a refused microphone offers **打开系统设置**, and each granted card collapses with a check while the step keeps re-reading the live permission state. When macOS reports the grant but Fn listening still fails, that card explains the stale grant instead and offers **重新打开 Typeless**, **打开系统设置** and **复制诊断信息**. **继续** waits for every card; **稍后在基本设置中授权** continues regardless. On macOS, **快捷键仍不可用？改用输入监控** opens the Input Monitoring pane.
-2. **麦克风:** choose an input and speak. The meter moves with your voice and **已检测到声音** appears once sound is detected. The selected device saves immediately.
-3. **快捷键:** press Fn, Right Alt or the fallback chord. During setup a press is only counted and acknowledged with **检测到 Fn**; it does not start dictation, so the capsule never appears.
-4. **完成:** a checklist of microphone, assistant and shortcut, then **去连接 AI 服务** when no speech key is saved and **开始使用** otherwise. **稍后再说** also ends the guide.
+## Quick start
 
-Finishing or skipping the guide records it as complete, and the shell then opens on **AI 配置** while no speech key is saved, on **首页** afterwards. **基本设置 → 系统权限** carries **重新运行设置向导** to run it again later. Upgrading from an earlier version keeps the existing settings file, which counts as complete, so upgrades never see the guide.
+1. Finish the setup guide: allow the microphone and 辅助功能, pick an input device and test the shortcut.
+2. Open **AI 配置** and connect 语音识别: the Xiaomi MiMo preset is filled in, so paste your key and click 保存. Connect 文字润色 the same way, or choose 不润色.
+3. Put the cursor anywhere, tap Fn (Right Alt on Windows), speak, tap again. The text is copied and, if enabled, pasted.
 
-Then connect the providers and dictate:
+The [user guide](docs/USER_GUIDE.md) covers every setting, the permissions, local storage and troubleshooting.
 
-1. From **首页**, the **配置语音** button and the **语音识别** status row open **AI 配置** as well. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
-2. Configure the independent **文字润色** connection using your text provider's base URL, model and key, then save it. Alternatively, select **不润色** at the top of that form for recognition alone. Do not append `/chat/completions` to a base URL.
-3. In **基本设置**, select a microphone and review permissions. A macOS Accessibility grant made while the app runs normally takes effect within one status poll; if the shortcut keeps reporting **已授权但监听未生效**, use **重新打开 Typeless** on that row, and remove and re-add Typeless under 辅助功能 and 输入监控 when the relaunched app still shows the permission as pending. **复制诊断信息** in the same group collects the details for a bug report. The **首页** button can record and copy even when native shortcut or paste permissions are unavailable.
-4. Click **开始听写** on **首页**, or use the shortcut from any application. Tap again, click **结束听写**, or click the capsule's confirm circle to finish. The bottom-center capsule is black and shows a cancel circle, a white waveform and a confirm circle, all visible without hovering; the remaining time joins them for the last ten seconds of the recording cap. Processing replaces the waveform and confirm circle with **思考中** and keeps cancel, then the capsule disappears after copying and the optional paste attempt. Click an error capsule to open recovery.
+## Privacy
 
-Updates: **基本设置 → 关于** checks GitHub Releases 15 seconds after launch and every six hours in a packaged app (`TYPELESS_UPDATE_URL` overrides the endpoint; `off` disables the automatic check), and **检查更新** does it on demand. A newer release shows **有新版本** in the sidebar and in that row; **下载更新** fetches the installer for this platform into the Downloads folder, verifies GitHub's digest when one is published, and **打开安装包** opens it. Installing is still manual: drag the new app into Applications and grant the permissions again, because ad-hoc signed builds change identity on every release.
+Audio goes only to the speech provider you configured, and the transcript only to the text model you configured, under their terms. Typeless keeps the current result in memory, stores settings locally, encrypts keys with the system's secure storage and never writes transcripts to disk.
 
-macOS uses isolated Fn taps; Windows uses isolated Right Alt taps. The default fallback is Command/Ctrl+Shift+Space. Fn hardware behavior is not universal on Windows, and AltGr combinations must remain normal typing. If macOS Fn/Globe also triggers a system action, review its keyboard setting or use the fallback; the app does not change that system assignment.
+## Documentation
 
-Recording does not require an editable field, an original target, or a terminal allowlist. Every completed result replaces the clipboard and remains there. **完成后自动粘贴** optionally dispatches Command+V/Ctrl+V to the current foreground application; changing applications changes the destination. A dispatched shortcut is not proof of visible input. With no usable destination, paste the copied result later. The app never presses Enter to send or execute text. Canceling cannot undo an already completed copy or paste.
+- [User guide](docs/USER_GUIDE.md): settings, permissions, recovery and troubleshooting.
+- [Development](docs/DEVELOPMENT.md): build, run, test and package from source.
+- Design and evidence: [proposal](docs/PROPOSAL.md), [UI design](docs/UI_DESIGN.md), [validation record](docs/VALIDATION.md).
 
-The result card on **首页** offers **整理后** and **原文** views with a copy button. Copying either view only updates the clipboard: it does not run a model, replace the other view, or dispatch another paste. New sessions replace these transient views. The recovery alert above that card offers relevant configuration links and retry only while the session remains recoverable. The recorder produces mono 16 kHz PCM16 WAV and defaults to a 60-second cap. See the [User guide](docs/USER_GUIDE.md) for permissions, storage and troubleshooting.
+## Status
 
-## Build and run
+Typeless is an independent project and is not affiliated with the commercial Typeless service. macOS builds are ad-hoc signed and not notarized; Windows builds are unsigned and have not been run by the maintainer. The [validation record](docs/VALIDATION.md) lists what has actually been checked for the current release.
 
-Use Node.js supported by the locked dependencies and npm. macOS native builds require Xcode Command Line Tools. From this checkout:
+## License
 
-```sh
-cd path/to/Typeless
-npm ci
-npm run build
-npm start
-```
-
-On Windows, substitute your checkout path. The build produces the renderer, Electron entry points and host-native helper. No API keys ship with the app. A browser opening the renderer displays a marked preview without native transcription.
-
-Development and verification commands, run from the project directory:
-
-```sh
-npm run dev
-npm test
-npm run typecheck
-npm run test:desktop
-npm run test:delivery
-npm run verify:windows
-```
-
-Build before desktop tests. `test:desktop` exercises real Electron IPC, configuration and recording with fake audio, local HTTP providers and test-only credential encryption. `test:delivery` launches a disposable external editor to check native paste, input events, clipboard retention, focus and overlay behavior; it requires existing permissions and does not grant them. Neither measures live ASR quality, a physical shortcut, the real microphone, or OS credential security. Test evidence is isolated under `.local/`. `verify:windows` checks helper compilation with an optional .NET SDK, not Windows runtime behavior. Normal Windows use relies on the packaged helper and system PowerShell.
-
-## Packaging
-
-The 2.2.1 build targets are:
-
-- macOS Apple silicon: [Typeless-2.2.1-arm64.dmg](release/Typeless-2.2.1-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
-- Windows x64 portable: [Typeless-2.2.1-win.zip](release/Typeless-2.2.1-win.zip).
-
-These are output locations, not release or acceptance claims. Consult [Validation](docs/VALIDATION.md) for the artifacts actually built and checked.
-
-```sh
-npm run package:mac
-npm run package:win
-```
-
-On macOS, drag the app from the DMG into Applications, eject the image, then launch it. The build uses ad-hoc signing, not Developer ID signing or notarization. On Windows, extract the complete ZIP before opening `Typeless.exe`; retain its companion files. Signing, notarization, publishing and automatic updates are separate work.
-
-## Data and credentials
-
-Audio goes directly to the chosen speech provider. When polishing is enabled, the transcript and writing instructions go to the chosen text provider. Provider policies and charges apply independently; this is not an offline or provider-zero-retention claim. No application account, hosted backend or sync is required.
-
-Keys are encrypted with OS-protected storage before local persistence and are never returned in renderer snapshots. Blank key fields retain saved keys; **删除密钥** removes one explicitly. Changing an endpoint origin or speech protocol invalidates its old key unless a replacement is supplied. Encryption failure does not fall back to plaintext keys.
-
-The current transcript stays in memory; the application does not create a persistent transcript archive. Failed recognition can retain audio in memory for up to five minutes for retry. Success, cancellation, a new session or quitting releases it. The production clipboard is not restored to its previous contents. Other local settings are not encrypted by this application.
-
-Development data defaults to `.local/app/`; installed apps normally use the OS application-data directory. `TYPELESS_DATA_DIR` overrides the root. Helper status transitions are appended to `logs/native-status.log` under that root, one JSON line each, truncated past 256 KB and free of transcripts and keys. See [local storage](docs/USER_GUIDE.md#local-storage-and-retention).
-
-## Project references
-
-| Path | Purpose |
-| --- | --- |
-| [Proposal](docs/PROPOSAL.md) | Current scope, architecture and acceptance requirements |
-| [Validation](docs/VALIDATION.md) | Executed checks and remaining limitations |
-| [UI design](docs/UI_DESIGN.md) | Interface specification for the sidebar shell, pages and voice capsule |
-| [Complete Quickstart review](docs/research/quickstart-review.md) | Full official-guide review and scoped interaction decisions |
-| [Dictation and actions research](docs/research/quickstart-dictation-and-actions.md) | Recording, editing and adjacent-action evidence |
-| [Preferences and recovery research](docs/research/quickstart-preferences-and-learning.md) | Personalization, settings and recovery evidence |
-| [Official settings research](docs/research/settings-simplification.md) | Screenshot evidence and the reduced configuration design |
-| [Implementation decision](docs/IMPLEMENTATION_DECISION.md) | Shared Electron stack and native helper tradeoffs |
-| [Provider research](docs/research/providers.md) | Protocol sources and provider contracts |
-| [Dictation decision](docs/research/dictation-redesign.md) | Copy-first behavior and historical target investigation |
-| `src/renderer/` | Interface and microphone capture |
-| `src/core/` | Providers, session lifecycle and local settings |
-| `electron/`, `native/` | Desktop integration and platform helpers |
+[MIT](LICENSE)

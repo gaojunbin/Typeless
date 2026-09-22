@@ -32,7 +32,15 @@ describe('configuration and opaque document preservation', () => {
     expect(() => store.saveSettings({ cleanup: { baseUrl: 'http://remote.example/v1' } })).toThrow();
     expect(() => store.saveSettings({ cleanup: { baseUrl: 'https://secret@remote.example/v1' } })).toThrow();
     expect(() => store.saveSettings({ privacy: {} } as never)).toThrow();
+    expect(() => store.saveSettings({ general: { language: 'fr' as never } })).toThrow('Unknown interface language.');
     expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+  it('persists the interface language and reloads it', () => {
+    const { store, file } = create();
+    expect(store.snapshot().settings.general.language).toBe('zh');
+    store.saveSettings({ general: { language: 'en' } });
+    expect(store.snapshot().settings.general.language).toBe('en');
+    expect(new Store(file, crypto).snapshot().settings.general.language).toBe('en');
   });
   it('keeps saved and live preferences and keys unchanged when the atomic write fails', () => {
     const { store, file } = create(); store.saveSettings({}, { asr: 'original-key' });

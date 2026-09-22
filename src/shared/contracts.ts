@@ -14,8 +14,12 @@ export interface AppSettings {
   writing: { strength: 'light' | 'balanced'; instructions: string; language: string };
   audio: { deviceId: string; maxDurationSeconds: number; interactionSounds: boolean };
   shortcut: { primary: string; fallback: string };
-  general: { launchAtLogin: boolean; autoInsert: boolean; setupCompleted: boolean };
+  general: { launchAtLogin: boolean; autoInsert: boolean; setupCompleted: boolean; language: Language };
 }
+
+/** Interface language. Every piece of interface copy exists in both. */
+export type Language = 'zh' | 'en';
+export const languages: readonly Language[] = ['zh', 'en'];
 
 export type DeliveryStatus = 'none' | 'pending' | 'copied' | 'confirmed' | 'dispatched' | 'failed';
 

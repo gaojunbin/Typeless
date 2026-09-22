@@ -24,6 +24,8 @@ No global Save button is needed. Credentials are an intentional exception to imm
 
 The shell uses a light sidebar, a near-white content background, grouped setting rows with a left label and a right-aligned control, and pill buttons; [UI design](UI_DESIGN.md) is the authoritative specification for its tokens, components and layout. Errors appear next to the relevant action. Normal completion must not open the main window or turn the capsule into a large status panel. The unconfigured primary action opens AI configuration directly; recoverable setup errors link to the relevant configuration destination. The first-run guide is the only wizard; it is not a second navigation layer over the settings, and basic settings can start it again.
 
+The interface is bilingual. Chinese is the default and the copy the e2e suites select by; English is selectable under **基本设置 → 通用 → 语言** and with the toggle on the setup guide's welcome screen. Every string exists in both languages in one catalogue (`src/renderer/i18n/messages/`), the setting is `general.language`, and the tray menu follows it. No third language is planned.
+
 ## Dictation and delivery
 
 macOS uses an isolated Fn tap to start and another to stop. Windows uses isolated Right Alt with chord/AltGr filtering. A configurable Command/Ctrl+Shift+Space fallback and the application recording button remain available when the primary shortcut cannot be used. Universal Windows Fn support is not assumed.
@@ -94,6 +96,6 @@ Implementation and validation are separate. Required checks include:
 
 Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Version 2.2.1 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest; it never replaces itself, because ad-hoc signed builds must be reinstalled and re-authorized by hand. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
+Version 2.2.1 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest; it never replaces itself, because ad-hoc signed builds must be reinstalled and re-authorized by hand. The [development guide](DEVELOPMENT.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
 Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

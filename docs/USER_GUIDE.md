@@ -1,12 +1,12 @@
 # User guide
 
-This guide describes the reduced dictation interface. UI labels are shown in Chinese to match the app. See [Validation](VALIDATION.md) for actual artifacts and completed checks; this guide does not certify all editors or live-provider quality.
+This guide describes the reduced dictation interface. UI labels are shown in Chinese, the default language; the whole interface is also available in English (基本设置 → 通用 → 语言, or the toggle on the welcome screen), and the English labels follow the same structure. See [Validation](VALIDATION.md) for actual artifacts and completed checks; this guide does not certify all editors or live-provider quality.
 
 ## Open the application
 
-The 2.2.1 package output locations are [Typeless-2.2.1-arm64.dmg](../release/Typeless-2.2.1-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.1-win.zip](../release/Typeless-2.2.1-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact.
+The 2.2.1 package output locations are [Typeless-2.2.1-arm64.dmg](../release/Typeless-2.2.1-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.1-win.zip](../release/Typeless-2.2.1-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized, so macOS warns on first launch that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact; SmartScreen may ask for confirmation because the build is unsigned.
 
-From source, run `npm ci`, `npm run build`, then `npm start` in the checkout. The first run contains no API keys.
+To run from source, follow the [development guide](DEVELOPMENT.md). The first run contains no API keys.
 
 ## The main window
 
@@ -18,7 +18,7 @@ A new installation reaches this shell only after the setup guide below. Afterwar
 
 ## Set up on first launch
 
-The first launch of a new installation opens a setup guide instead of the shell. **欢迎使用 Typeless** starts it with **开始设置**; **跳过向导** ends it at once. A progress header then names four steps, **权限**, **麦克风**, **快捷键** and **完成**, each with **继续** and a way to skip.
+The first launch of a new installation opens a setup guide instead of the shell. **欢迎使用 Typeless** starts it with **开始设置**; **跳过向导** ends it at once. Under those two buttons a quiet **English** link switches the whole interface to English (and **中文** switches back); the choice is saved immediately and applies to every later screen, the capsule and the tray menu. A progress header then names four steps, **权限**, **麦克风**, **快捷键** and **完成**, each with **继续** and a way to skip.
 
 **权限** lists one card per system permission: the microphone on both platforms, **允许 Typeless 粘贴文字并监听 Fn 键** on macOS, and **启用系统输入助手** on Windows. Only the first card that still needs attention stays expanded; a granted card collapses to its title with a check. The step re-reads the live permission state, so cards collapse while you flip the switches in system settings. **继续** is enabled once every card is granted; **稍后在基本设置中授权** continues without them. The info button on a pending card reveals the manual path, 系统设置 → 隐私与安全性 → 麦克风 or 辅助功能 → 开启 Typeless.
 
@@ -67,7 +67,7 @@ Use **个人表达说明** for optional instructions such as preferred terminolo
 
 ## Basic settings and permissions
 
-**基本设置** groups its rows under **快捷键** (primary and fallback shortcut), **音频** (microphone and **录音提示音**), **通用** (**完成后自动粘贴** and **登录系统时启动**), **系统权限** and **关于**. Each row keeps its label on the left and its control on the right. Selectors and switches save immediately. The fallback shortcut offers three readable presets and saves on selection; an existing custom binding remains available. There is no global Save action. Startup behavior applies to packaged applications.
+**基本设置** groups its rows under **快捷键** (primary and fallback shortcut), **音频** (microphone and **录音提示音**), **通用** (**语言** with **中文** / **English**, then **完成后自动粘贴** and **登录系统时启动**), **系统权限** and **关于**. Each row keeps its label on the left and its control on the right. Selectors and switches save immediately. The fallback shortcut offers three readable presets and saves on selection; an existing custom binding remains available. There is no global Save action. Startup behavior applies to packaged applications.
 
 Microphone names may be unavailable before permission is granted; **系统默认** uses the default device. Device choices refresh when devices change. A waveform indicates audio level, not a live transcript. Recording sounds indicate recording transitions; visible state remains authoritative if sound playback is suppressed.
 

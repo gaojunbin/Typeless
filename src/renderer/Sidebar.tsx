@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { CircleArrowUp, House, Settings, Sparkle } from 'lucide-react';
 import type { AppSnapshot } from '../shared/contracts';
 import { BrandMark } from './ui';
+import { useI18n } from './i18n';
 import { pages, type Page } from './settings/types';
 
 type IconComponent = ComponentType<{ size?: number; strokeWidth?: number }>;
@@ -9,6 +10,7 @@ const icons: Record<Page, IconComponent> = { home: House, ai: Sparkle, basic: Se
 
 export function Sidebar({ page, onNavigate, snapshot }: { page: Page; onNavigate: (page: Page) => void; snapshot: AppSnapshot }) {
   const { update } = snapshot;
+  const { t } = useI18n();
   function move(key: string) {
     const direction = key === 'ArrowDown' || key === 'ArrowRight' ? 1 : key === 'ArrowUp' || key === 'ArrowLeft' ? -1 : 0;
     if (!direction && key !== 'Home' && key !== 'End') return;
@@ -16,7 +18,7 @@ export function Sidebar({ page, onNavigate, snapshot }: { page: Page; onNavigate
     onNavigate(pages[index].id);
     document.getElementById(`settings-tab-${pages[index].id}`)?.focus();
   }
-  return <nav className="sidebar" aria-label="主导航">
+  return <nav className="sidebar" aria-label={t('common.shell.mainNav')}>
     <div className="sidebar-brand"><BrandMark size={22} /><span>Typeless</span></div>
     <div className="sidebar-nav" role="tablist" aria-orientation="vertical">
       {pages.map(item => {
@@ -32,12 +34,12 @@ export function Sidebar({ page, onNavigate, snapshot }: { page: Page; onNavigate
           tabIndex={page === item.id ? 0 : -1}
           onClick={() => onNavigate(item.id)}
           onKeyDown={event => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); move(event.key); } }}
-        ><Icon size={20} strokeWidth={1.5} /><span>{item.label}</span></button>;
+        ><Icon size={20} strokeWidth={1.5} /><span>{t(item.labelKey)}</span></button>;
       })}
     </div>
     {update.status === 'available' && <button type="button" className="sidebar-update" onClick={() => onNavigate('basic')}>
       <CircleArrowUp size={16} strokeWidth={1.5} aria-hidden="true" />
-      <span>有新版本 {update.latestVersion}</span>
+      <span>{t('common.shell.newVersion', { version: update.latestVersion ?? '' })}</span>
     </button>}
   </nav>;
 }

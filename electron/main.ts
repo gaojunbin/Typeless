@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Store } from '../src/core/store';
 import { Providers } from '../src/core/providers';
-import type { AppAction, CaptureEvent, Permissions } from '../src/shared/contracts';
+import type { AppAction, CaptureEvent, Language, Permissions } from '../src/shared/contracts';
 import { Controller } from './controller';
 import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
@@ -23,6 +23,19 @@ let mainWindow: BrowserWindow;
 let overlay: BrowserWindow;
 let voiceOverlay: VoiceOverlay;
 let tray: Tray;
+const menuCopy = {
+  zh: { open: '打开 Typeless', toggle: '开始 / 停止听写', cancel: '取消听写', quit: '退出' },
+  en: { open: 'Open Typeless', toggle: 'Start / stop dictation', cancel: 'Cancel dictation', quit: 'Quit' },
+};
+const menuLabels = () => menuCopy[store.snapshot().settings.general.language];
+let trayLanguage: Language | undefined;
+function refreshTrayMenu() {
+  const language = store.snapshot().settings.general.language;
+  if (!tray || tray.isDestroyed() || trayLanguage === language) return;
+  trayLanguage = language;
+  const labels = menuLabels();
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: labels.open, click: showMain }, { label: labels.toggle, click: () => { void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); } }, { type: 'separator' }, { label: labels.quit, click: () => app.quit() }]));
+}
 let controller: Controller;
 let store: Store;
 let quitting = false;
@@ -201,8 +214,8 @@ else {
     overlay.webContents.on('context-menu', () => {
       const active = ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status);
       Menu.buildFromTemplate([
-        ...(active ? [{ label: '取消听写', click: () => { void controller.dispatch({ type: 'dictation.cancel' }); } }] : []),
-        { label: '打开 Typeless', click: showMain },
+        ...(active ? [{ label: menuLabels().cancel, click: () => { void controller.dispatch({ type: 'dictation.cancel' }); } }] : []),
+        { label: menuLabels().open, click: showMain },
       ]).popup({ window: overlay });
     });
     secureWindow(mainWindow); secureWindow(overlay);
@@ -228,6 +241,7 @@ else {
         if (quitting || !mainWindow || mainWindow.isDestroyed() || !overlay || overlay.isDestroyed()) return;
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
+        refreshTrayMenu();
       },
       permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },
       copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(),
@@ -269,7 +283,7 @@ else {
     const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAANUlEQVR4nGNgGLRARk7pPzIeNYBIA5AV4jIAr2GDywCy1eBTQFJgYsNEacZmEMkaqWYAMQAAQnpGfcf9t5IAAAAASUVORK5CYII=');
     if (process.platform === 'darwin') icon.setTemplateImage(true);
     tray = new Tray(icon); tray.setToolTip('Typeless');
-    tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 Typeless', click: showMain }, { label: '开始 / 停止听写', click: () => { void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError); } }, { type: 'separator' }, { label: '退出', click: () => app.quit() }]));
+    refreshTrayMenu();
     tray.on('click', showMain);
     await Promise.all([load(mainWindow, 'default'), load(overlay, 'overlay')]);
     showMain();

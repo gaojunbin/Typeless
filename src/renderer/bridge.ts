@@ -1,9 +1,10 @@
 import type { AppSnapshot, TypelessBridge } from '../shared/contracts';
+import { translate } from './i18n';
 
 export const isPreview = !window.typeless;
 function previewBridge(): TypelessBridge {
   const state: AppSnapshot = {
-    version: '界面预览', platform: 'darwin',
+    version: 'preview', platform: 'darwin',
     settings: {
       asr: { kind: 'mimo', baseUrl: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-asr', hasApiKey: false },
       cleanup: { enabled: true, baseUrl: 'https://api.openai.com/v1', model: '', hasApiKey: false },
@@ -11,10 +12,10 @@ function previewBridge(): TypelessBridge {
       audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: true },
       shortcut: { primary: 'Fn', fallback: 'CommandOrControl+Shift+Space' },
       // The browser preview opens the shell; #setup previews the first-run guide instead.
-      general: { launchAtLogin: false, autoInsert: true, setupCompleted: location.hash !== '#setup' },
+      general: { launchAtLogin: false, autoInsert: true, setupCompleted: location.hash !== '#setup', language: 'zh' },
     },
     session: { id: '', status: 'idle', startedAt: 0, durationMs: 0, level: 0, rawText: '', text: '', inserted: false, canRetry: false },
-    update: { status: 'none', currentVersion: '界面预览', checkedAt: Date.now() },
+    update: { status: 'none', currentVersion: 'preview', checkedAt: Date.now() },
     permissions: { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', primaryShortcutAvailable: false, fallbackShortcutAvailable: false, inputMonitoring: false, shortcutMessage: '', shortcutPresses: 0 },
   };
   const listeners = new Set<(value: AppSnapshot) => void>();
@@ -47,7 +48,7 @@ function previewBridge(): TypelessBridge {
         case 'update.openRelease':
           return { ok: true };
         default:
-          return { ok: false, message: '请在桌面应用中使用录音和系统功能。' };
+          return { ok: false, message: translate(state.settings.general.language, 'common.shell.previewOnly') };
       }
     },
   };

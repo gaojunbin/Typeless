@@ -1,5 +1,6 @@
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Segmented, SettingRow } from '../ui';
+import { useI18n } from '../i18n';
 import { writingLevel, writingLevels, type WritingLevel } from '../writingPresentation';
 import { SaveStatus, useSettingDraft } from './Autosave';
 import type { SettingsSectionProps } from './types';
@@ -11,18 +12,22 @@ function saving(status: 'idle' | 'saving' | 'error', retry: () => void) {
 
 /** Polish level. Three UI levels map onto `cleanup.enabled` plus `writing.strength`; see docs/UI_DESIGN.md section 13.4. */
 export function WritingLevelRow({ snapshot, run }: SettingsSectionProps) {
+  const { t } = useI18n();
   const level = useSettingDraft<WritingLevel>(writingLevel(snapshot.settings), value => run({
     type: 'settings.save',
     patch: { cleanup: { enabled: value !== 'none' }, writing: { strength: value === 'light' ? 'light' : 'balanced' } },
   }));
-  return <SettingRow stacked className="writing-level" label="润色程度" control={<>
-    <Segmented ariaLabel="润色程度" options={writingLevels} value={level.value} disabled={level.status === 'saving'} onChange={value => { level.edit(value); void level.commit(value); }} />
-    <p className="writing-hint">{writingLevels.find(item => item.value === level.value)?.hint}</p>
+  const label = t('settings.writing.level.label');
+  const hintKey = writingLevels.find(item => item.value === level.value)?.hintKey;
+  return <SettingRow stacked className="writing-level" label={label} control={<>
+    <Segmented ariaLabel={label} options={writingLevels.map(item => ({ value: item.value, label: t(item.labelKey) }))} value={level.value} disabled={level.status === 'saving'} onChange={value => { level.edit(value); void level.commit(value); }} />
+    <p className="writing-hint">{hintKey && t(hintKey)}</p>
   </>} status={saving(level.status, () => { void level.commit(); })} />;
 }
 
-/** Personal instructions sent with every polish request. Stays editable while the level is 不润色, and says so. */
+/** Personal instructions sent with every polish request. Stays editable while polishing is off, and says so. */
 export function WritingInstructionsRow({ snapshot, run }: SettingsSectionProps) {
+  const { t } = useI18n();
   const instructions = useSettingDraft(snapshot.settings.writing.instructions, value => run({ type: 'settings.save', patch: { writing: { instructions: value } } }));
   const inactive = writingLevel(snapshot.settings) === 'none';
   const commit = () => { void instructions.commit(); };
@@ -30,13 +35,13 @@ export function WritingInstructionsRow({ snapshot, run }: SettingsSectionProps) 
   const shortcutCommit = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); commit(); }
   };
-  return <SettingRow stacked className={`writing-instructions ${inactive ? 'writing-inactive' : ''}`.trim()} label="个人表达说明" htmlFor="writing-instructions"
-    control={<textarea id="writing-instructions" value={instructions.value} placeholder="例如：保留英文技术术语，使用简体中文。"
+  return <SettingRow stacked className={`writing-instructions ${inactive ? 'writing-inactive' : ''}`.trim()} label={t('settings.writing.instructions.label')} htmlFor="writing-instructions"
+    control={<textarea id="writing-instructions" value={instructions.value} placeholder={t('settings.writing.instructions.placeholder')}
       onChange={(event: ChangeEvent<HTMLTextAreaElement>) => instructions.edit(event.target.value)}
       onBlur={commit}
       onKeyDown={shortcutCommit} />}
     status={<div className="writing-status">
-      <p className="writing-hint">{inactive ? '开启润色后生效，说明会保留。' : '离开输入框自动保存，也可按 ⌘ / Ctrl + Enter。'}</p>
+      <p className="writing-hint">{t(inactive ? 'settings.writing.instructions.inactive' : 'settings.writing.instructions.hint')}</p>
       {saving(instructions.status, commit)}
     </div>} />;
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Keyboard, Laptop, Mic, ShieldCheck } from 'lucide-react';
-import { KeyChips, PageHeader, SectionGroup, SettingRow, StatusBadge } from '../ui';
+import { KeyChips, PageHeader, SectionGroup, Segmented, SettingRow, StatusBadge } from '../ui';
+import { useI18n } from '../i18n';
+import type { Language } from '../../shared/contracts';
 import { shortcutLabel } from '../shortcutPresentation';
 import { AboutGroup } from './About';
 import { SaveStatus, useSettingDraft } from './Autosave';
@@ -34,6 +36,17 @@ function SwitchRow({ label, description, saved, save }: { label: string; descrip
     status={saving(draft.status, () => { void draft.commit(); })} />;
 }
 
+/** Interface language. Autosaves like the switches, and the whole tree re-renders once the snapshot returns. */
+function LanguageRow({ snapshot, run }: SettingsSectionProps) {
+  const { t } = useI18n();
+  const draft = useSettingDraft<Language>(snapshot.settings.general.language, language => run({ type: 'settings.save', patch: { general: { language } } }));
+  const label = t('common.language.label');
+  const options = [{ value: 'zh' as Language, label: t('common.language.zh') }, { value: 'en' as Language, label: t('common.language.en') }];
+  return <SettingRow inline className="pref-switch-row" label={label}
+    control={<Segmented ariaLabel={label} options={options} value={draft.value} disabled={draft.status === 'saving'} onChange={value => { draft.edit(value); void draft.commit(value); }} />}
+    status={saving(draft.status, () => { void draft.commit(); })} />;
+}
+
 function PermissionRow({ label, granted, text, action }: { label: string; granted: boolean; text: string; action?: { label: string; onClick: () => void } }) {
   return <SettingRow inline className="pref-permission-row" label={label} control={<>
     <StatusBadge tone={granted ? 'ok' : 'warn'}>{text}</StatusBadge>
@@ -42,6 +55,7 @@ function PermissionRow({ label, granted, text, action }: { label: string; grante
 }
 
 export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
+  const { t } = useI18n();
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   useEffect(() => {
     let live = true;
@@ -53,54 +67,56 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
   const mac = platform === 'darwin';
   const primary = platform === 'win32' ? 'RightAlt' : 'Fn';
   const off = settings.shortcut.primary.toLowerCase() === 'disabled';
-  const shortcutState = primaryShortcutStatus(snapshot);
-  const inputMonitoring = inputMonitoringStatus(snapshot);
+  const shortcutState = primaryShortcutStatus(snapshot, t);
+  const inputMonitoring = inputMonitoringStatus(snapshot, t);
   const fallbackChoices = fallbackPresets.includes(settings.shortcut.fallback) ? fallbackPresets : [settings.shortcut.fallback, ...fallbackPresets];
   const openAccessibility = () => { void run({ type: 'permissions.request', permission: 'accessibility' }); };
   const openPane = (pane: 'microphone' | 'inputMonitoring') => () => { void run({ type: 'permissions.open', pane }); };
+  const openSettings = t('settings.permissions.openSystemSettings');
   return <>
-    <PageHeader title="基本设置" subtitle="快捷键、麦克风、粘贴行为与系统权限。" />
-    <SectionGroup icon={<Keyboard {...groupIcon} />} title="快捷键">
-      <SelectRow id="pref-shortcut-primary" label="主要快捷键" description="按一下开始，再按一下结束。"
+    <PageHeader title={t('common.page.basic')} subtitle={t('settings.basic.subtitle')} />
+    <SectionGroup icon={<Keyboard {...groupIcon} />} title={t('settings.shortcut.group')}>
+      <SelectRow id="pref-shortcut-primary" label={t('settings.shortcut.primary.label')} description={t('settings.shortcut.primary.description')}
         saved={off ? 'Disabled' : primary} save={value => run({ type: 'settings.save', patch: { shortcut: { primary: value } } })}
         status={<div className="pref-shortcut-status">
           <StatusBadge tone={shortcutState.tone}>{shortcutState.text}</StatusBadge>
-          {permissions.shortcutMessage === 'relaunch_required' && <button type="button" className="secondary small" onClick={() => { void run({ type: 'app.relaunch' }); }}>重新打开 Typeless</button>}
+          {permissions.shortcutMessage === 'relaunch_required' && <button type="button" className="secondary small" onClick={() => { void run({ type: 'app.relaunch' }); }}>{t('settings.shortcut.reopen')}</button>}
           {!off && <KeyChips binding={settings.shortcut.primary} mac={mac} />}
         </div>}>
-        <option value={primary}>{primary === 'Fn' ? 'Fn' : 'Right Alt'} · 按一下开始 / 结束</option>
-        <option value="Disabled">关闭</option>
+        <option value={primary}>{t('settings.shortcut.primary.option', { key: primary === 'Fn' ? 'Fn' : 'Right Alt' })}</option>
+        <option value="Disabled">{t('settings.shortcut.primary.off')}</option>
       </SelectRow>
-      <SelectRow id="pref-shortcut-fallback" label="备用快捷键"
+      <SelectRow id="pref-shortcut-fallback" label={t('settings.shortcut.fallback.label')}
         saved={settings.shortcut.fallback} save={value => run({ type: 'settings.save', patch: { shortcut: { fallback: value } } })}
-        status={<StatusBadge tone={permissions.fallbackShortcutAvailable ? 'ok' : 'warn'}>{permissions.fallbackShortcutAvailable ? '已就绪' : '未注册，请选择其他组合键'}</StatusBadge>}>
+        status={<StatusBadge tone={permissions.fallbackShortcutAvailable ? 'ok' : 'warn'}>{t(permissions.fallbackShortcutAvailable ? 'settings.shortcut.fallback.ready' : 'settings.shortcut.fallback.unavailable')}</StatusBadge>}>
         {fallbackChoices.map(binding => <option key={binding} value={binding}>{shortcutLabel(binding, mac)}</option>)}
       </SelectRow>
     </SectionGroup>
-    <SectionGroup icon={<Mic {...groupIcon} />} title="音频">
-      <SelectRow id="pref-microphone" label="麦克风" saved={settings.audio.deviceId} save={deviceId => run({ type: 'settings.save', patch: { audio: { deviceId } } })}>
-        <option value="default">系统默认</option>
-        {devices.filter(device => device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `麦克风 ${index + 1}`}</option>)}
+    <SectionGroup icon={<Mic {...groupIcon} />} title={t('settings.audio.group')}>
+      <SelectRow id="pref-microphone" label={t('settings.audio.microphone')} saved={settings.audio.deviceId} save={deviceId => run({ type: 'settings.save', patch: { audio: { deviceId } } })}>
+        <option value="default">{t('settings.audio.systemDefault')}</option>
+        {devices.filter(device => device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || t('settings.audio.microphoneIndex', { index: index + 1 })}</option>)}
       </SelectRow>
-      <SwitchRow label="录音提示音" saved={settings.audio.interactionSounds} save={interactionSounds => run({ type: 'settings.save', patch: { audio: { interactionSounds } } })} />
+      <SwitchRow label={t('settings.audio.sounds')} saved={settings.audio.interactionSounds} save={interactionSounds => run({ type: 'settings.save', patch: { audio: { interactionSounds } } })} />
     </SectionGroup>
-    <SectionGroup icon={<Laptop {...groupIcon} />} title="通用">
-      <SwitchRow label="完成后自动粘贴" description="把结果粘贴到当前前台应用，不会按下回车。" saved={settings.general.autoInsert} save={autoInsert => run({ type: 'settings.save', patch: { general: { autoInsert } } })} />
-      <SwitchRow label="登录系统时启动" saved={settings.general.launchAtLogin} save={launchAtLogin => run({ type: 'settings.save', patch: { general: { launchAtLogin } } })} />
+    <SectionGroup icon={<Laptop {...groupIcon} />} title={t('settings.general.group')}>
+      <LanguageRow snapshot={snapshot} run={run} />
+      <SwitchRow label={t('settings.general.autoInsert.label')} description={t('settings.general.autoInsert.description')} saved={settings.general.autoInsert} save={autoInsert => run({ type: 'settings.save', patch: { general: { autoInsert } } })} />
+      <SwitchRow label={t('settings.general.launchAtLogin.label')} saved={settings.general.launchAtLogin} save={launchAtLogin => run({ type: 'settings.save', patch: { general: { launchAtLogin } } })} />
     </SectionGroup>
-    <SectionGroup icon={<ShieldCheck {...groupIcon} />} title="系统权限">
-      <PermissionRow label="麦克风" granted={permissions.microphone === 'granted'} text={permissions.microphone === 'granted' ? '已授权' : '待授权'}
+    <SectionGroup icon={<ShieldCheck {...groupIcon} />} title={t('settings.permissions.group')}>
+      <PermissionRow label={t('settings.audio.microphone')} granted={permissions.microphone === 'granted'} text={t(permissions.microphone === 'granted' ? 'settings.permissions.granted' : 'settings.permissions.pending')}
         action={permissions.microphone === 'granted' ? undefined
-          : permissions.microphone === 'denied' ? { label: '打开系统设置', onClick: openPane('microphone') }
-          : { label: '授权', onClick: () => { void run({ type: 'permissions.request', permission: 'microphone' }); } }} />
+          : permissions.microphone === 'denied' ? { label: openSettings, onClick: openPane('microphone') }
+          : { label: t('settings.permissions.allow'), onClick: () => { void run({ type: 'permissions.request', permission: 'microphone' }); } }} />
       {mac
-        ? <PermissionRow label="辅助功能" granted={permissions.accessibility} text={permissions.accessibility ? '已授权' : '待授权'} action={{ label: '打开系统设置', onClick: openAccessibility }} />
-        : <PermissionRow label="系统输入助手" granted={permissions.nativeAvailable} text={permissions.nativeAvailable ? '已就绪' : '不可用'} action={{ label: '打开系统设置', onClick: openAccessibility }} />}
-      {mac && <PermissionRow label="输入监控" granted={inputMonitoring.ok} text={inputMonitoring.text}
-        action={inputMonitoring.ok ? undefined : { label: '打开系统设置', onClick: openPane('inputMonitoring') }} />}
-      <SettingRow inline className="pref-permission-row" label="设置向导" description="重新检查权限、麦克风与快捷键。"
-        control={<button type="button" className="secondary small" onClick={() => { void run({ type: 'settings.save', patch: { general: { setupCompleted: false } } }); }}>重新运行设置向导</button>} />
-      <SettingRow inline className="pref-permission-row" label="诊断信息" description="复制版本、权限与助手状态，便于排查问题。"
+        ? <PermissionRow label={t('settings.permissions.accessibility')} granted={permissions.accessibility} text={t(permissions.accessibility ? 'settings.permissions.granted' : 'settings.permissions.pending')} action={{ label: openSettings, onClick: openAccessibility }} />
+        : <PermissionRow label={t('settings.permissions.assistant')} granted={permissions.nativeAvailable} text={t(permissions.nativeAvailable ? 'settings.permissions.assistant.ready' : 'settings.permissions.assistant.unavailable')} action={{ label: openSettings, onClick: openAccessibility }} />}
+      {mac && <PermissionRow label={t('settings.permissions.inputMonitoring')} granted={inputMonitoring.ok} text={inputMonitoring.text}
+        action={inputMonitoring.ok ? undefined : { label: openSettings, onClick: openPane('inputMonitoring') }} />}
+      <SettingRow inline className="pref-permission-row" label={t('settings.permissions.setupGuide.label')} description={t('settings.permissions.setupGuide.description')}
+        control={<button type="button" className="secondary small" onClick={() => { void run({ type: 'settings.save', patch: { general: { setupCompleted: false } } }); }}>{t('settings.permissions.setupGuide.action')}</button>} />
+      <SettingRow inline className="pref-permission-row" label={t('settings.permissions.diagnostics.label')} description={t('settings.permissions.diagnostics.description')}
         control={<DiagnosticsButton run={run} className="secondary small" />} />
     </SectionGroup>
     <AboutGroup snapshot={snapshot} run={run} />

@@ -18,6 +18,8 @@
 .setup-welcome-card h1 { font-size: var(--fs-title); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
 .setup-welcome-card .setup-subtitle { margin-bottom: 10px; }
 .setup-welcome-card .setup-welcome-start { width: 100%; height: 44px; }
+/* Interface language switch: quiet enough to stay out of the way of the two primary choices. */
+.setup-welcome-card .setup-language { margin-top: -6px; color: var(--text-secondary); font-size: var(--fs-body); font-weight: 400; }
 
 /* Progress header */
 .setup-progress { flex: 0 0 auto; background: var(--bg); -webkit-app-region: drag; }
