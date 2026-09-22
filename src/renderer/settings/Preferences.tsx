@@ -6,6 +6,7 @@ import { writingLevel, writingLevels, type WritingLevel } from '../writingPresen
 import { SaveStatus, useSettingDraft } from './Autosave';
 import type { SettingsSectionProps } from './types';
 import { inputMonitoringStatus, primaryShortcutStatus } from '../onboarding/permissionStatus';
+import { DiagnosticsButton } from '../onboarding/DiagnosticsButton';
 import '../styles/preferences.css';
 
 const fallbackPresets = ['CommandOrControl+Shift+Space', 'CommandOrControl+Shift+D', 'CommandOrControl+Alt+Space'];
@@ -99,6 +100,8 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
         action={inputMonitoring.ok ? undefined : { label: '打开系统设置', onClick: openPane('inputMonitoring') }} />}
       <SettingRow inline className="pref-permission-row" label="设置向导" description="重新检查权限、麦克风与快捷键。"
         control={<button type="button" className="secondary small" onClick={() => { void run({ type: 'settings.save', patch: { general: { setupCompleted: false } } }); }}>重新运行设置向导</button>} />
+      <SettingRow inline className="pref-permission-row" label="诊断信息" description="复制版本、权限与助手状态，便于排查问题。"
+        control={<DiagnosticsButton run={run} className="secondary small" />} />
     </SectionGroup>
   </>;
 }

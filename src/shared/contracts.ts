@@ -74,7 +74,8 @@ export type AppAction =
   | { type: 'window.show' }
   | { type: 'window.hide' }
   | { type: 'app.quit' }
-  | { type: 'app.relaunch' };
+  | { type: 'app.relaunch' }
+  | { type: 'diagnostics.copy' };
 
 export interface ActionResult {
   ok: boolean;

@@ -202,6 +202,9 @@ try {
   await expect(page.locator('h1')).toHaveText('在这台电脑上设置 Typeless');
   await expect(page.locator('.permission-card')).toHaveCount(setupCards.length);
   assert.deepEqual(await page.locator('.permission-card').evaluateAll(cards => cards.map(card => card.dataset.permission)), setupCards);
+  // docs/UI_DESIGN.md section 12.3 defines exactly these states; neither enabling nor relaunch exists.
+  const cardStates = await page.locator('.permission-card').evaluateAll(cards => cards.map(card => card.dataset.state));
+  assert.equal(cardStates.every(state => ['pending', 'denied', 'stale', 'granted'].includes(state)), true, `Unexpected permission card states: ${cardStates.join(', ')}`);
   await capture(page, 'setup-permissions');
   // 允许 is never clicked: it would raise the real system permission prompt.
   assert.equal((await dispatch(page, { type: 'microphone.test', active: true })).ok, true);
@@ -374,6 +377,23 @@ try {
   await waitSettings({ asr: { model: 'mimo-v2.5-asr', hasApiKey: true } });
   // No replacement key is supplied again: later HTTP and restart checks prove retention.
 
+  stage('基本设置 copies a diagnostics report');
+  await openTab('基本设置');
+  const diagnosticsRow = page.locator('.setting-row.pref-permission-row').filter({ hasText: '诊断信息' });
+  await expect(diagnosticsRow).toHaveCount(1);
+  // diagnostics.copy writes plain text, bypassing the ownership-marked write this harness restores on close.
+  const clipboardBeforeDiagnostics = await app.evaluate(async ({ clipboard }) => clipboard.readText());
+  await diagnosticsRow.getByRole('button', { name: '复制诊断信息', exact: true }).click();
+  // The label reads 已复制 for two seconds after a successful copy, so the button is located again by its new name.
+  await expect(diagnosticsRow.getByRole('button', { name: '已复制', exact: true })).toBeVisible({ timeout: 1000 });
+  const report = await app.evaluate(async ({ clipboard }) => clipboard.readText());
+  assert.ok(report.startsWith('Typeless '), `The diagnostics report must open with the application name: ${JSON.stringify(report.slice(0, 40))}`);
+  assert.ok(report.includes('permissions:'), 'The diagnostics report must carry the permission state.');
+  assert.ok(report.includes('native status history'), 'The diagnostics report must carry the native status history.');
+  assert.equal(report.includes('FAKE-'), false, 'The diagnostics report must not carry credentials.');
+  assert.equal((await dispatch(page, { type: 'diagnostics.copy' })).ok, true);
+  await app.evaluate(async ({ clipboard }, previous) => { if (previous) clipboard.writeText(previous); else clipboard.clear(); }, clipboardBeforeDiagnostics);
+
   stage('基本设置 reruns the guide and 跳过向导 returns to the shell');
   await openTab('基本设置');
   await page.getByRole('button', { name: '重新运行设置向导', exact: true }).click();
@@ -489,7 +509,7 @@ try {
   }
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

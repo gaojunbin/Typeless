@@ -1,12 +1,13 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerMonitor, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron';
-import { mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerMonitor, safeStorage, screen, session, shell, systemPreferences, Tray } from 'electron';
+import { spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Store } from '../src/core/store';
 import { Providers } from '../src/core/providers';
 import type { AppAction, CaptureEvent, Permissions } from '../src/shared/contracts';
 import { Controller } from './controller';
-import { NativeClient } from './native-client';
+import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
 import { ClipboardDelivery } from './clipboard-delivery';
 import { shortcutPermissions } from './shortcut-status';
@@ -30,10 +31,21 @@ let shortcutHealthTimer: ReturnType<typeof setInterval> | undefined;
 let refreshingPermissions = false;
 let shortcutPresses = 0;
 let micTestUntil = 0;
+interface StatusTransition {
+  at: string;
+  accessibility: boolean;
+  inputMonitoring: boolean;
+  shortcutReason: string;
+  tapEnabled: boolean;
+  helperPid: number;
+  error: string;
+}
+const statusHistory: StatusTransition[] = [];
+let lastTransition = '';
 const devUrl = process.env.VITE_DEV_SERVER_URL;
 const pageUrl = devUrl ? new URL(devUrl).origin : pathToFileURL(join(app.getAppPath(), 'dist', 'index.html')).toString();
 if (devUrl && !['localhost', '127.0.0.1'].includes(new URL(devUrl).hostname)) throw new Error('Development UI must use loopback.');
-const native = new NativeClient({ onShortcut: () => shortcutPressed(), onStatus: status => { if (!quitting) nativeAvailable = !status.error; } });
+const native = new NativeClient({ onShortcut: () => shortcutPressed(), onStatus: status => { if (!quitting) { nativeAvailable = !status.error; recordNativeStatus(status); } } });
 const delivery = new ClipboardDelivery((text, options) => native.paste(text, options));
 function shortcutPressed() {
   if (quitting || !store || !controller) return;
@@ -70,8 +82,10 @@ async function load(window: BrowserWindow, hash: string) {
 }
 async function permissions(request?: 'microphone' | 'accessibility'): Promise<Permissions> {
   if (request === 'microphone' && process.platform === 'darwin') await systemPreferences.askForMediaAccess('microphone');
-  if (request === 'accessibility') await native.requestAccessibility();
+  // A helper that cannot take the request still leaves the user a way to grant the permission by hand.
+  if (request === 'accessibility') await native.requestAccessibility().catch(() => openPane('accessibility'));
   const nativeStatus = await native.status();
+  recordNativeStatus(nativeStatus);
   nativeAvailable = !nativeStatus.error;
   const microphone = process.platform === 'darwin' || process.platform === 'win32' ? systemPreferences.getMediaAccessStatus('microphone') : 'unknown';
   return { microphone: ['granted', 'denied', 'not-determined'].includes(microphone) ? microphone as Permissions['microphone'] : 'unknown', accessibility: nativeStatus.accessibility, nativeAvailable, nativeMessage: nativeStatus.error || '', shortcutPresses, ...shortcutPermissions(nativeStatus, store.snapshot().settings.shortcut.primary, shortcutAvailable) };
@@ -81,6 +95,75 @@ function openPane(pane: 'microphone' | 'accessibility' | 'inputMonitoring') {
   // Other platforms have no equivalent pane; opening nothing is a successful no-op.
   if (process.platform === 'darwin') void shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${panes[pane]}`).catch(() => {});
   else if (process.platform === 'win32' && pane === 'microphone') void shell.openExternal('ms-settings:privacy-microphone').catch(() => {});
+}
+/** Keeps the last 50 helper transitions in memory and on disk, so a stale tap can be diagnosed after the fact. */
+function recordNativeStatus(status: NativeStatus) {
+  const transition: StatusTransition = {
+    at: new Date().toISOString(),
+    accessibility: status.accessibility,
+    inputMonitoring: status.inputMonitoring,
+    shortcutReason: status.shortcutReason || '',
+    tapEnabled: Boolean(status.tapEnabled),
+    helperPid: status.helperPid || 0,
+    error: status.error || '',
+  };
+  const key = JSON.stringify({ ...transition, at: '' });
+  if (key === lastTransition) return;
+  lastTransition = key;
+  statusHistory.push(transition);
+  if (statusHistory.length > 50) statusHistory.splice(0, statusHistory.length - 50);
+  const path = join(app.getPath('logs'), 'native-status.log');
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, JSON.stringify(transition) + '\n', { mode: 0o600 });
+    // Keep the log bounded; the retained history is enough to explain a failing tap.
+    if (statSync(path).size > 262_144) writeFileSync(path, statusHistory.map(item => JSON.stringify(item) + '\n').join(''), { mode: 0o600 });
+  } catch { /* Diagnostics must never interrupt dictation. */ }
+}
+function bundlePath(): string {
+  const executable = app.getPath('exe');
+  const suffix = executable.indexOf('/Contents/MacOS/');
+  return process.platform === 'darwin' && suffix > 0 ? executable.slice(0, suffix) : executable;
+}
+/** The code-signing identity the operating system matches permission grants against. */
+function bundleCdhash(bundle: string): string {
+  if (process.platform !== 'darwin') return 'unknown';
+  try {
+    const result = spawnSync('/usr/bin/codesign', ['-dvvv', bundle], { timeout: 3000, encoding: 'utf8' });
+    const match = /CDHash=([0-9a-fA-F]+)/.exec(`${result.stderr || ''}\n${result.stdout || ''}`);
+    return match ? match[1] : 'unknown';
+  } catch { return 'unknown'; }
+}
+function diagnosticsReport(): string {
+  const snapshot = controller.snapshot();
+  const bundle = bundlePath();
+  return [
+    `Typeless ${app.getVersion()}`,
+    `platform: ${process.platform} ${process.getSystemVersion()}`,
+    `packaged: ${app.isPackaged}`,
+    `executable: ${app.getPath('exe')}`,
+    `bundle: ${bundle}`,
+    `cdhash: ${bundleCdhash(bundle)}`,
+    `shortcut: ${JSON.stringify(snapshot.settings.shortcut)}`,
+    `general: ${JSON.stringify(snapshot.settings.general)}`,
+    `audio.deviceId: ${snapshot.settings.audio.deviceId}`,
+    `permissions: ${JSON.stringify(snapshot.permissions)}`,
+    `native status history (${statusHistory.length}):`,
+    ...statusHistory.map(item => JSON.stringify(item)),
+  ].join('\n');
+}
+async function copyDiagnostics(): Promise<void> {
+  const report = diagnosticsReport();
+  try { clipboard.writeText(report); }
+  catch { throw new Error('Diagnostics could not be copied to the clipboard.'); }
+}
+function relaunch() {
+  if (app.isPackaged && process.platform === 'darwin') {
+    // Relaunching through `open` on the bundle gives the new instance the same launch identity as Finder does.
+    spawn('/bin/sh', ['-c', 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; exec /usr/bin/open "$2"', 'sh', String(process.pid), bundlePath()],
+      { detached: true, stdio: 'ignore' }).unref();
+  } else app.relaunch();
+  app.quit();
 }
 async function refreshShortcutHealth() {
   if (quitting || !controller || refreshingPermissions) return;
@@ -143,7 +226,7 @@ else {
       },
       permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },
       copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(),
-      quit: () => app.quit(), relaunch: () => { app.relaunch(); app.quit(); }, settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
+      quit: () => app.quit(), relaunch, copyDiagnostics, settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
     }, app.getVersion());
     const checkSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) => {
       if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !trusted(event.sender, event.senderFrame.url)) throw new Error('Untrusted IPC sender.');

@@ -96,8 +96,8 @@ body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
 .permission-check { color: #ffffff; }
 .permission-check circle { fill: var(--ink); stroke: var(--ink); }
 .permission-body { margin-top: 8px; color: var(--text-secondary); }
-.permission-body svg { margin-right: 6px; vertical-align: -2px; }
-.permission-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+/* The stale card carries three buttons; they wrap rather than widen the panel. */
+.permission-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .permission-actions:empty { display: none; }
 .permission-hint { margin-top: 10px; color: var(--text-tertiary); }
 

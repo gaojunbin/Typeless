@@ -17,17 +17,17 @@ describe('shortcut permission presentation', () => {
     expect(shortcutPermissions(available, 'Disabled', true)).toMatchObject({ primaryShortcutAvailable: false, shortcutMessage: 'disabled' });
     expect(shortcutPermissions({ ...available, binding: 'disabled' }, 'Fn', true)).toMatchObject({ primaryShortcutAvailable: false, shortcutMessage: 'binding_mismatch' });
   });
-  it('presents a stale tap on an authorized helper as recoverable, and as needing a relaunch once restarts are spent', () => {
+  it('presents a stale tap on an authorized helper as needing an application relaunch', () => {
     for (const reason of ['tap_creation_failed', 'tap_disabled', 'runloop_source_failed']) {
-      expect(shortcutPermissions({ ...available, shortcutAvailable: false, shortcutReason: reason }, 'Fn', true)).toMatchObject({ primaryShortcutAvailable: false, shortcutMessage: 'tap_stale' });
-      expect(shortcutPermissions({ ...available, shortcutAvailable: false, shortcutReason: reason, restartsExhausted: true }, 'Fn', true)).toMatchObject({ shortcutMessage: 'relaunch_required' });
+      expect(shortcutPermissions({ ...available, shortcutAvailable: false, shortcutReason: reason }, 'Fn', true)).toMatchObject({ primaryShortcutAvailable: false, shortcutMessage: 'relaunch_required' });
+      expect(shortcutPermissions({ ...available, inputMonitoring: false, shortcutAvailable: false, shortcutReason: reason }, 'Fn', true)).toMatchObject({ shortcutMessage: 'relaunch_required' });
+      expect(shortcutPermissions({ ...available, accessibility: false, shortcutAvailable: false, shortcutReason: reason }, 'Fn', true)).toMatchObject({ shortcutMessage: 'relaunch_required' });
     }
-    expect(shortcutPermissions({ ...available, accessibility: false, shortcutAvailable: false, shortcutReason: 'tap_disabled' }, 'Fn', true)).toMatchObject({ shortcutMessage: 'tap_stale' });
   });
   it('keeps a stale reason unchanged while the helper is not authorized to listen', () => {
     const untrusted = { ...available, accessibility: false, inputMonitoring: false, shortcutAvailable: false };
     expect(shortcutPermissions({ ...untrusted, shortcutReason: 'tap_creation_failed' }, 'Fn', true)).toMatchObject({ shortcutMessage: 'tap_creation_failed' });
-    expect(shortcutPermissions({ ...untrusted, shortcutReason: 'tap_disabled', restartsExhausted: true }, 'Fn', true)).toMatchObject({ shortcutMessage: 'tap_disabled' });
+    expect(shortcutPermissions({ ...untrusted, shortcutReason: 'tap_disabled' }, 'Fn', true)).toMatchObject({ shortcutMessage: 'tap_disabled' });
   });
   it('reports helper failure and recovers the primary status independently', () => {
     expect(shortcutPermissions({ ...available, error: 'Native helper stopped.' }, 'Fn', true)).toMatchObject({ primaryShortcutAvailable: false, shortcutMessage: 'helper_unavailable' });

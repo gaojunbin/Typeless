@@ -13,7 +13,6 @@ class Helper extends EventEmitter {
   stderr = new PassThrough();
   binding = 'fn';
   respond = true;
-  reason: string | undefined;
   requests: { method: string; params: { binding?: string } }[] = [];
   stdin = new Writable({ write: (chunk, _encoding, done) => {
     const request = JSON.parse(chunk.toString());
@@ -22,7 +21,7 @@ class Helper extends EventEmitter {
     if (request.method === 'configureShortcut') this.binding = request.params.binding;
     queueMicrotask(() => this.stdout.write(JSON.stringify({ id: request.id, result: {
       platform: 'darwin', accessibility: true, inputMonitoring: true, binding: this.binding,
-      shortcutAvailable: this.binding === 'fn', tapEnabled: this.binding === 'fn', shortcutReason: this.reason,
+      shortcutAvailable: this.binding === 'fn', tapEnabled: this.binding === 'fn',
     } }) + '\n'));
     done();
   } });
@@ -51,42 +50,6 @@ describe('native helper recovery', () => {
     helpers[0].stdout.write('{"event":"shortcut"}\n');
     expect(shortcut).not.toHaveBeenCalled();
     expect((await client.status()).binding).toBe('disabled');
-  });
-  it('restarts a helper that exited on a stale tap, then stops arming the restart once the budget is spent', async () => {
-    let now = 10000; vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const helpers: Helper[] = [];
-    mocks.spawn.mockImplementation(() => { const child = new Helper(); helpers.push(child); return child; });
-    const client = new NativeClient({ onShortcut: vi.fn() }); clients.push(client);
-    await client.start();
-    const armed = (call: number) => (mocks.spawn.mock.calls[call][2] as { env: NodeJS.ProcessEnv }).env.TYPELESS_HELPER_RESTART_ON_STALE;
-    expect(armed(0)).toBe('1');
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      helpers[attempt].emit('exit', 3);
-      now += 600; // A stale exit shortens recovery from two seconds to 500 ms.
-      const status = await client.status();
-      expect(mocks.spawn).toHaveBeenCalledTimes(attempt + 2);
-      expect(status.restartsExhausted).toBe(attempt === 2 ? true : undefined);
-    }
-    expect(armed(1)).toBe('1'); expect(armed(2)).toBe('1'); expect(armed(3)).toBeUndefined();
-    helpers[3].reason = 'ready';
-    expect((await client.status()).restartsExhausted).toBeUndefined();
-    helpers[3].emit('exit', 3);
-    now += 600; await client.status();
-    expect(armed(4)).toBe('1');
-  });
-  it('re-arms the helper restart once the recorded stale exits leave the 120 second window', async () => {
-    let now = 10000; vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const helpers: Helper[] = [];
-    mocks.spawn.mockImplementation(() => { const child = new Helper(); helpers.push(child); return child; });
-    const client = new NativeClient({ onShortcut: vi.fn() }); clients.push(client);
-    await client.start();
-    for (let attempt = 0; attempt < 3; attempt += 1) { helpers[attempt].emit('exit', 3); now += 600; await client.status(); }
-    expect((await client.status()).restartsExhausted).toBe(true);
-    now += 120_001;
-    expect((await client.status()).restartsExhausted).toBeUndefined();
-    helpers[3].emit('exit', 3);
-    now += 600; await client.status();
-    expect((mocks.spawn.mock.calls[4][2] as { env: NodeJS.ProcessEnv }).env.TYPELESS_HELPER_RESTART_ON_STALE).toBe('1');
   });
   it('does not resurrect the helper after an explicit stop', async () => {
     mocks.spawn.mockImplementation(() => new Helper());

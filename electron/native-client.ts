@@ -23,7 +23,6 @@ export interface NativeStatus {
   fnTransitions?: number;
   shortcutActivations?: number;
   helperPid?: number;
-  restartsExhausted?: boolean;
 }
 export interface NativeInsertResult {
   ok: boolean;
@@ -49,7 +48,6 @@ export class NativeClient {
   private startup?: Promise<void>;
   private stopped = false;
   private nextRecoveryAt = 0;
-  private staleRestarts: number[] = [];
   private binding = process.platform === 'darwin' ? 'fn' : 'right-alt';
 
   constructor(private readonly options: Options) {}
@@ -68,9 +66,6 @@ export class NativeClient {
     let command: string;
     let args: string[];
     const environment: NodeJS.ProcessEnv = { ...process.env };
-    // The helper may only restart itself on a stale tap while this client still has restart budget left.
-    if (this.staleBudgetRemaining()) environment.TYPELESS_HELPER_RESTART_ON_STALE = '1';
-    else delete environment.TYPELESS_HELPER_RESTART_ON_STALE;
     if (process.platform === 'darwin') {
       command = join(root, 'bin', 'typeless-native');
       if (!existsSync(command)) throw new NativeError('helper_unavailable', 'Build the macOS native helper with npm run build:native.');
@@ -105,29 +100,15 @@ Add-Type -Path $env:TYPELESS_NATIVE_SOURCE -ReferencedAssemblies $references;
       this.options.onStatus?.(this.unavailable());
     };
     child.on('error', () => lost('Native helper could not start. Manual copy remains available.'));
-    child.on('exit', (code: number | null) => {
-      if (this.child === child && code === 3) { this.staleRestarts.push(Date.now()); this.nextRecoveryAt = Date.now() + 500; }
-      lost('Native helper stopped. Manual copy remains available.');
-    });
+    child.on('exit', () => lost('Native helper stopped. Manual copy remains available.'));
     try {
       await this.request<NativeStatus>('status', {}, 20_000);
       await this.request('configureShortcut', { binding: this.binding });
-      this.options.onStatus?.(this.track(await this.request<NativeStatus>('status')));
+      this.options.onStatus?.(await this.request<NativeStatus>('status'));
     } catch (error) {
       child.kill();
       throw error;
     }
-  }
-
-  private staleBudgetRemaining(): boolean {
-    const cutoff = Date.now() - 120_000;
-    this.staleRestarts = this.staleRestarts.filter(at => at > cutoff);
-    return this.staleRestarts.length < 3;
-  }
-
-  private track(status: NativeStatus): NativeStatus {
-    if (status.shortcutReason === 'ready') this.staleRestarts = [];
-    return this.staleBudgetRemaining() ? status : { ...status, restartsExhausted: true };
   }
 
   private unavailable(): NativeStatus {
@@ -188,15 +169,15 @@ Add-Type -Path $env:TYPELESS_NATIVE_SOURCE -ReferencedAssemblies $references;
 
   async status(): Promise<NativeStatus> {
     if (!this.child && !this.stopped && Date.now() >= this.nextRecoveryAt) {
-      try { await this.start(); } catch { return this.track(this.unavailable()); }
+      try { await this.start(); } catch { return this.unavailable(); }
     }
-    if (!this.child) return this.track(this.unavailable());
+    if (!this.child) return this.unavailable();
     if (this.startup) {
-      try { await this.startup; } catch { return this.track(this.unavailable()); }
+      try { await this.startup; } catch { return this.unavailable(); }
     }
     const child = this.child;
-    if (!child) return this.track(this.unavailable());
-    try { return this.track(await this.request<NativeStatus>('status')); }
+    if (!child) return this.unavailable();
+    try { return await this.request<NativeStatus>('status'); }
     catch (error) {
       if (error instanceof NativeError && error.code === 'native_timeout' && this.child === child) {
         this.child = undefined; this.startup = undefined; this.buffer = '';
@@ -204,7 +185,7 @@ Add-Type -Path $env:TYPELESS_NATIVE_SOURCE -ReferencedAssemblies $references;
         this.fail(new NativeError('helper_unavailable', 'Native helper stopped responding. Check the foreground application before retrying paste.'));
         child.kill();
         this.options.onStatus?.(this.unavailable());
-        return this.track(this.unavailable());
+        return this.unavailable();
       }
       throw error;
     }

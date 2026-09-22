@@ -288,7 +288,7 @@ Cross-file contract: `main.tsx` renders `<Sidebar page onNavigate snapshot />` a
 
 ## 12. First-run setup guide
 
-Added after the 2.0.0 release. The guide walks a new install through every system permission before the main shell appears, modelled on the official onboarding (`docs/research/ui-official-onboarding-and-changelog.md` section 2: progress header with gradient bar, one-expanded-at-a-time permission cards that collapse with a black check, 15-bar blue microphone meter, periwinkle feature cards). It also fixes the "监听不可用，正在恢复" dead end: a helper that is trusted but whose event tap still fails is restarted, and the app can be relaunched from the UI.
+Added after the 2.0.0 release. The guide walks a new install through every system permission before the main shell appears, modelled on the official onboarding (`docs/research/ui-official-onboarding-and-changelog.md` section 2: progress header with gradient bar, one-expanded-at-a-time permission cards that collapse with a black check, 15-bar blue microphone meter, periwinkle feature cards). It also replaces the "监听不可用，正在恢复" dead end: when the helper reports listening authorization but its event tap still fails, the UI says so, explains the stale-grant cause, and offers a relaunch and a diagnostics copy. Revised on 2026-09-22 after field testing showed that restarting the helper process never recovers such a tap.
 
 ### 12.1 Trigger and exit
 
@@ -340,8 +340,7 @@ Step shell (steps 权限, 麦克风, 快捷键, 完成):
 
 - `pending`: body + "允许" pill + `Info` icon button (aria-label "为什么需要此权限", toggles one extra line of the manual path: 系统设置 → 隐私与安全性 → 辅助功能 / 麦克风 → 开启 Typeless).
 - `denied` (microphone `denied`; helper `nativeAvailable === false`): body "系统已拒绝麦克风权限。请在系统设置中开启后返回。" / "助手不可用，可先使用备用快捷键。" and, for the microphone, "打开系统设置" → `permissions.open microphone`.
-- `enabling` (accessibility `true` but `primaryShortcutAvailable` false and `shortcutMessage` ∈ `tap_stale | tap_disabled | tap_creation_failed | runloop_source_failed`): body "已授权，正在启用 Fn 监听…" with `Busy`.
-- `relaunch` (`shortcutMessage === 'relaunch_required'`): body "已授权，但需要重新打开 Typeless 才能生效。" and "重新打开 Typeless" → `app.relaunch`.
+- `stale` (`shortcutMessage === 'relaunch_required'`: the helper reports listening authorization through Accessibility or Input Monitoring, yet its tap still fails): body "系统显示已授权，但 Fn 监听尚未生效。请先重新打开 Typeless；如果重新打开后仍显示待授权，说明是升级前留下的旧授权：请在系统设置 → 隐私与安全性 → 辅助功能与输入监控中移除 Typeless 并重新添加。" Buttons in this order: "重新打开 Typeless" → `app.relaunch` (primary), "打开系统设置" → `permissions.open accessibility`, "复制诊断信息" → `diagnostics.copy` (label becomes "已复制" for 2 s on success). No `enabling` state exists: the helper retries the tap on every 2 s poll, so a grant that works shows `granted` within one poll and one that does not shows `stale`.
 - `granted`: microphone `granted`; accessibility `true` and (`primaryShortcutAvailable` or primary shortcut `Disabled`); helper `nativeAvailable`.
 
 Below the cards on macOS: text link "快捷键仍不可用？改用输入监控" → `permissions.open inputMonitoring`.
@@ -367,15 +366,17 @@ Hero card: a preview of the voice capsule from section 8 rendered statically ins
 - `permissions.shortcutPresses` (new) counts native and fallback presses since launch. When `settings.general.setupCompleted` is `false`, both handlers increment the counter and call the health refresh (so the snapshot publishes at once) instead of dispatching `dictation.toggle`. When `true`, behaviour is unchanged.
 - `{ type: 'microphone.test', active }`: main records `micTestUntil = active ? now + 120 s : 0`. The media permission request and check handlers allow audio when `micTestUntil > now` in addition to `arming`/`recording`.
 - `{ type: 'permissions.open', pane }`: darwin opens `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone | Privacy_Accessibility | Privacy_ListenEvent`; win32 opens `ms-settings:privacy-microphone` for `microphone` and is a no-op otherwise; other platforms no-op. Always `{ ok: true }`.
-- `{ type: 'app.relaunch' }`: `app.relaunch()` then `app.quit()` through the normal `before-quit` path.
-- Helper stale-tap restart. `native/macos/Main.swift`: when `reconcile()` runs while trusted (`CGPreflightListenEventAccess() || AXIsProcessTrusted()`) and ends in `tap_creation_failed`, `tap_disabled` or `runloop_source_failed`, increment a stale counter (reset on `ready`). At 3 consecutive stale reconciles and only when the environment variable `TYPELESS_HELPER_RESTART_ON_STALE=1` is set, emit `{"event":"stale","params":{"reason":…}}` and `exit(3)`. Document the event and exit code in `native/PROTOCOL.md`.
-- `electron/native-client.ts`: on child exit with code 3, allow an immediate restart (`nextRecoveryAt = now + 500 ms`) and record the timestamp. Spawn with the environment flag while fewer than 3 such restarts happened in the last 120 s; otherwise spawn without it and expose `restartsExhausted: true` on every `NativeStatus` until a status reports `shortcutReason: 'ready'`, which clears the history.
-- `electron/shortcut-status.ts`: when the reason is one of the three stale codes and the helper is trusted (`accessibility || inputMonitoring`), `shortcutMessage` becomes `relaunch_required` if `restartsExhausted`, else `tap_stale`. All other mappings stay.
-- Unit tests: `tests/shortcut-status.test.ts` for the two new codes; `tests/native-client.test.ts` for exit-code-3 restart, the 3-in-120 s budget, the environment flag and `restartsExhausted`; `native/bin/typeless-native --self-test` must still pass.
+- `{ type: 'permissions.request', permission: 'accessibility' }`: if the helper request fails (for example the helper is unavailable), main opens the Accessibility pane instead and still returns the refreshed permissions; the action never fails because of the helper.
+- `{ type: 'app.relaunch' }`: on packaged macOS, spawn a detached `/bin/sh` that waits for the current pid to exit and then runs `/usr/bin/open <bundle path>` (the new instance starts the way Finder starts it), then `app.quit()`. Elsewhere `app.relaunch(); app.quit()`.
+- Stale tap. The helper only reports: `reconcile()` keeps its existing reasons and never exits on its own; there is no self-restart, exit code, environment flag or restart budget, and `NativeStatus` has no `restartsExhausted`. `electron/shortcut-status.ts`: when the reason is `tap_creation_failed`, `tap_disabled` or `runloop_source_failed` and the helper is trusted (`accessibility || inputMonitoring`), `shortcutMessage` is `relaunch_required`; every other mapping stays and `tap_stale` no longer exists.
+- Native status history: main records the last 50 transitions of `NativeStatus` (a transition is a change in `accessibility`, `inputMonitoring`, `shortcutReason`, `tapEnabled`, `helperPid` or `error`) with timestamps, and appends each as one JSON line to `<logs>/native-status.log`, truncating that file when it exceeds 256 KB.
+- `{ type: 'diagnostics.copy' }`: main writes a plain-text report to the clipboard with `clipboard.writeText`: app version, `process.platform` and `process.getSystemVersion()`, packaged flag and executable path, bundle cdhash on macOS (parsed from `codesign -dvvv` on the bundle via `spawnSync` with a 3 s timeout, `unknown` on failure), settings without secrets (`shortcut`, `general`, `audio.deviceId`), the current `Permissions`, and the status history. Returns `{ ok: true }`, or `{ ok: false, message }` when the clipboard write throws.
+- Unit tests: `tests/shortcut-status.test.ts` covers trusted-plus-stale → `relaunch_required` and untrusted-plus-stale unchanged; `tests/native-client.test.ts` drops the exit-code-3 cases; `native/bin/typeless-native --self-test` must still pass.
 
 ### 12.5 基本设置 changes (Agent O)
 
-- Shortcut status copy: `tap_stale` → "已授权，正在启用监听…"; `relaunch_required` → "已授权但未生效，请重新打开 Typeless" plus a small secondary button "重新打开 Typeless" → `app.relaunch`. Existing codes keep their copy.
+- Shortcut status copy: `relaunch_required` → "已授权但监听未生效" plus a small secondary button "重新打开 Typeless" → `app.relaunch`; `input_monitoring_denied` → "请授权辅助功能（升级后需移除旧条目重新添加）". Other codes keep their copy; `tap_stale` is gone.
+- 系统权限 group gains a last row 诊断信息, description "复制版本、权限与助手状态，便于排查问题。", button "复制诊断信息" → `diagnostics.copy` (label "已复制" for 2 s on success).
 - 系统权限 group: the 麦克风 row shows "打开系统设置" (`permissions.open microphone`) instead of "授权" when the status is `denied`. The 输入监控 row reads "已授权" (`ok`) when input monitoring itself is granted, "辅助功能已覆盖" (`ok`) when only accessibility is granted, otherwise "未授权" (`warn`) with "打开系统设置" (`permissions.open inputMonitoring`). New row 设置向导, description "重新检查权限、麦克风与快捷键。", button "重新运行设置向导" → `settings.save { general: { setupCompleted: false } }`.
 
 ### 12.6 Test hooks (extends section 10)
@@ -387,7 +388,8 @@ Hero card: a preview of the voice capsule from section 8 rendered statically ins
 - 麦克风: `h1` "说几句话，测试麦克风"; `select` labelled "麦克风"; `.level-meter i` × 15; `.mic-detected`; buttons "上一步", "继续".
 - 快捷键: `h1` "试试快捷键"; `.shortcut-detected`; buttons "上一步", "继续".
 - 完成: `h1` "一切就绪" | "还差最后一步"; buttons "去连接 AI 服务" | "开始使用", "稍后再说".
-- 基本设置: button "重新运行设置向导"; button "重新打开 Typeless" only while `relaunch_required`; 输入监控 badge "已授权" | "辅助功能已覆盖" | "未授权".
+- 基本设置: button "重新运行设置向导"; button "重新打开 Typeless" only while `relaunch_required`; button "复制诊断信息"; 输入监控 badge "已授权" | "辅助功能已覆盖" | "未授权".
+- Permission card states are `pending | denied | stale | granted`; the `stale` card carries buttons "重新打开 Typeless", "打开系统设置", "复制诊断信息".
 
 ### 12.7 Ownership for this change
 
@@ -399,7 +401,7 @@ Hero card: a preview of the voice capsule from section 8 rendered statically ins
 | Agent D verification (after N and O) | `tests/desktop.e2e.mjs`, `tests/dictation-delivery.e2e.mjs`, `docs/screenshots/*`, `docs/VALIDATION.md` |
 | Agent E docs (after N and O) | `README.md`, `docs/USER_GUIDE.md`, `docs/PROPOSAL.md` |
 
-Agent O imports primitives from `ui.tsx` but does not edit it, `base.css` or `shell.css`; anything new lives under `onboarding/` and `onboarding.css`. The preview bridge must simulate the new actions (`permissions.request` flips the matching flag, `microphone.test` and `permissions.open` return ok, `app.relaunch` returns ok) so the guide renders in a plain browser.
+Agent O imports primitives from `ui.tsx` but does not edit it, `base.css` or `shell.css`; anything new lives under `onboarding/` and `onboarding.css`. The preview bridge must simulate the new actions (`permissions.request` flips the matching flag, `microphone.test`, `permissions.open`, `app.relaunch` and `diagnostics.copy` return ok) so the guide renders in a plain browser.
 
 ### 12.8 Acceptance
 

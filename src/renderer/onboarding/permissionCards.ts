@@ -3,7 +3,7 @@ import { shortcutDisabled } from './permissionStatus';
 
 export type PermissionId = 'microphone' | 'accessibility' | 'helper';
 /** Card lifecycle from docs/UI_DESIGN.md section 12.3. */
-export type PermissionState = 'pending' | 'denied' | 'enabling' | 'relaunch' | 'granted';
+export type PermissionState = 'pending' | 'denied' | 'stale' | 'granted';
 
 export interface PermissionCardModel {
   id: PermissionId;
@@ -15,9 +15,6 @@ export interface PermissionCardModel {
   deniedBody?: string;
 }
 
-/** Helper reasons that mean the tap is trusted but not listening yet. */
-const staleReasons = new Set(['tap_stale', 'tap_disabled', 'tap_creation_failed', 'runloop_source_failed']);
-
 function microphoneState(snapshot: AppSnapshot): PermissionState {
   const value = snapshot.permissions.microphone;
   return value === 'granted' ? 'granted' : value === 'denied' ? 'denied' : 'pending';
@@ -26,8 +23,8 @@ function microphoneState(snapshot: AppSnapshot): PermissionState {
 function accessibilityState(snapshot: AppSnapshot): PermissionState {
   const { accessibility, primaryShortcutAvailable, shortcutMessage } = snapshot.permissions;
   if (accessibility && (primaryShortcutAvailable || shortcutDisabled(snapshot))) return 'granted';
-  if (shortcutMessage === 'relaunch_required') return 'relaunch';
-  if (accessibility && staleReasons.has(shortcutMessage)) return 'enabling';
+  // The helper holds a listening grant through accessibility or input monitoring, yet its tap still fails.
+  if (shortcutMessage === 'relaunch_required') return 'stale';
   return 'pending';
 }
 

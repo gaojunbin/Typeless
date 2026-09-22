@@ -14,6 +14,7 @@ export interface ControllerHost {
   hide(): void;
   quit(): void;
   relaunch(): void;
+  copyDiagnostics(): Promise<void>;
   settingsChanged(changes: { login: boolean; shortcut: boolean }): Promise<void>;
 }
 export class Controller {
@@ -60,6 +61,7 @@ export class Controller {
         case 'window.hide': this.host.hide(); break;
         case 'app.quit': this.host.quit(); break;
         case 'app.relaunch': this.host.relaunch(); break;
+        case 'diagnostics.copy': await this.host.copyDiagnostics(); break;
         default: throw new Error('Unsupported action.');
       }
       this.publish(); return { ok: true };

@@ -39,6 +39,7 @@ function previewBridge(): TypelessBridge {
         case 'microphone.test':
         case 'permissions.open':
         case 'app.relaunch':
+        case 'diagnostics.copy':
           return { ok: true };
         default:
           return { ok: false, message: '请在桌面应用中使用录音和系统功能。' };

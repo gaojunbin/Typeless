@@ -7,11 +7,11 @@ export function shortcutPermissions(status: NativeStatus, primary: string, fallb
   const binding = normalized === 'fn' ? 'fn' : normalized === 'rightalt' ? 'right-alt' : 'disabled';
   const primaryAvailable = !status.error && binding !== 'disabled' && status.binding === binding && status.shortcutAvailable;
   const reason = status.shortcutReason || (status.inputMonitoring ? 'tap_disabled' : 'input_monitoring_denied');
-  // An authorized helper whose event tap still fails is recovered by restarting the helper, then the whole app.
+  // An authorized helper whose event tap still fails cannot repair it in place; only a fresh application does.
   const stale = staleTapReasons.includes(reason) && (status.accessibility || status.inputMonitoring);
   const message = binding === 'disabled' ? 'disabled' : status.error ? 'helper_unavailable'
     : status.binding !== binding ? 'binding_mismatch' : primaryAvailable ? 'ready'
-    : stale ? (status.restartsExhausted ? 'relaunch_required' : 'tap_stale') : reason;
+    : stale ? 'relaunch_required' : reason;
   return {
     inputMonitoring: status.inputMonitoring,
     primaryShortcutAvailable: primaryAvailable,

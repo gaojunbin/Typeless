@@ -10,7 +10,7 @@ The main window is a two-column shell. A fixed sidebar carries the application m
 
 - **首页:** the **说话，不打字** hero, the dictation card with its start/stop button, shortcut keycaps, recording waveform, recovery alert and current result, a shortcut card for the primary and fallback bindings, a **配置概览** row of three status cards that open the other destinations, and a side rail with a status summary and a **三步开始** quick start.
 - **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button; the speech connection also selects the **小米 MiMo** or **OpenAI 兼容** protocol.
-- **基本设置:** rows grouped under **快捷键**, **音频**, **通用** and **系统权限**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior, permission status and a **重新运行设置向导** button.
+- **基本设置:** rows grouped under **快捷键**, **音频**, **通用** and **系统权限**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior, permission status, a **重新运行设置向导** button and a **复制诊断信息** button that puts the version, permissions and recent helper status on the clipboard.
 - **表达风格:** **不润色**, **轻度润色**, or **强力润色**, plus optional **个人表达说明**.
 
 Switches, selectors and the polishing level save immediately. Text preferences save on blur or Enter; multiline instructions use blur or Command/Ctrl+Enter. A failed save remains visible and can be retried. There is no global Save action and no second navigation layer for settings. Provider credentials deliberately use an explicit atomic save rather than saving partially edited addresses or keys.
@@ -21,7 +21,7 @@ No polishing copies the original transcript without requesting the text model. P
 
 A fresh installation opens the setup guide instead of the two-column shell. **欢迎使用 Typeless** offers **开始设置** or **跳过向导**, and the guide then walks four steps under a progress header:
 
-1. **权限:** one card per system permission, the microphone on both platforms plus macOS **辅助功能** for pasting and Fn listening or the bundled Windows input helper. **允许** requests a permission, a refused microphone offers **打开系统设置**, and each granted card collapses with a check while the step keeps re-reading the live permission state. **继续** waits for every card; **稍后在基本设置中授权** continues regardless. On macOS, **快捷键仍不可用？改用输入监控** opens the Input Monitoring pane.
+1. **权限:** one card per system permission, the microphone on both platforms plus macOS **辅助功能** for pasting and Fn listening or the bundled Windows input helper. **允许** requests a permission, a refused microphone offers **打开系统设置**, and each granted card collapses with a check while the step keeps re-reading the live permission state. When macOS reports the grant but Fn listening still fails, that card explains the stale grant instead and offers **重新打开 Typeless**, **打开系统设置** and **复制诊断信息**. **继续** waits for every card; **稍后在基本设置中授权** continues regardless. On macOS, **快捷键仍不可用？改用输入监控** opens the Input Monitoring pane.
 2. **麦克风:** choose an input and speak. The meter moves with your voice and **已检测到声音** appears once sound is detected. The selected device saves immediately.
 3. **快捷键:** press Fn, Right Alt or the fallback chord. During setup a press is only counted and acknowledged with **检测到 Fn**; it does not start dictation, so the capsule never appears.
 4. **完成:** a checklist of microphone, assistant and shortcut, then **去连接 AI 服务** when no speech key is saved and **开始使用** otherwise. **稍后再说** also ends the guide.
@@ -32,7 +32,7 @@ Then connect the providers and dictate:
 
 1. From **首页**, the **配置语音** button and the **语音识别** overview card open **AI 配置** as well. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
 2. Configure the independent **文字润色** connection using your text provider's base URL, model and key, then save it. Alternatively, select **表达风格 → 不润色** for recognition alone. Do not append `/chat/completions` to a base URL.
-3. In **基本设置**, select a microphone and review permissions. A macOS Accessibility grant made while the app runs is applied by restarting the helper; if the shortcut still reports **已授权但未生效，请重新打开 Typeless**, use **重新打开 Typeless** on that row. The **首页** button can record and copy even when native shortcut or paste permissions are unavailable.
+3. In **基本设置**, select a microphone and review permissions. A macOS Accessibility grant made while the app runs normally takes effect within one status poll; if the shortcut keeps reporting **已授权但监听未生效**, use **重新打开 Typeless** on that row, and remove and re-add Typeless under 辅助功能 and 输入监控 when the relaunched app still shows the permission as pending. **复制诊断信息** in the same group collects the details for a bug report. The **首页** button can record and copy even when native shortcut or paste permissions are unavailable.
 4. Click **开始听写** on **首页**, or use the shortcut from any application. Tap again, click **结束听写**, or click the capsule's confirm circle to finish. The bottom-center capsule is black and shows a cancel circle, a white waveform and a confirm circle, all visible without hovering; the remaining time joins them for the last ten seconds of the recording cap. Processing replaces the waveform and confirm circle with **思考中** and keeps cancel, then the capsule disappears after copying and the optional paste attempt. Click an error capsule to open recovery.
 
 macOS uses isolated Fn taps; Windows uses isolated Right Alt taps. The default fallback is Command/Ctrl+Shift+Space. Fn hardware behavior is not universal on Windows, and AltGr combinations must remain normal typing. If macOS Fn/Globe also triggers a system action, review its keyboard setting or use the fallback; the app does not change that system assignment.
@@ -69,10 +69,10 @@ Build before desktop tests. `test:desktop` exercises real Electron IPC, configur
 
 ## Packaging
 
-The 2.1.0 build targets are:
+The 2.1.1 build targets are:
 
-- macOS Apple silicon: [Typeless-2.1.0-arm64.dmg](release/Typeless-2.1.0-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
-- Windows x64 portable: [Typeless-2.1.0-win.zip](release/Typeless-2.1.0-win.zip).
+- macOS Apple silicon: [Typeless-2.1.1-arm64.dmg](release/Typeless-2.1.1-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
+- Windows x64 portable: [Typeless-2.1.1-win.zip](release/Typeless-2.1.1-win.zip).
 
 These are output locations, not release or acceptance claims. Consult [Validation](docs/VALIDATION.md) for the artifacts actually built and checked.
 
@@ -91,7 +91,7 @@ Keys are encrypted with OS-protected storage before local persistence and are ne
 
 The current transcript stays in memory; the application does not create a persistent transcript archive. Failed recognition can retain audio in memory for up to five minutes for retry. Success, cancellation, a new session or quitting releases it. The production clipboard is not restored to its previous contents. Other local settings are not encrypted by this application.
 
-Development data defaults to `.local/app/`; installed apps normally use the OS application-data directory. `TYPELESS_DATA_DIR` overrides the root. See [local storage](docs/USER_GUIDE.md#local-storage-and-retention).
+Development data defaults to `.local/app/`; installed apps normally use the OS application-data directory. `TYPELESS_DATA_DIR` overrides the root. Helper status transitions are appended to `logs/native-status.log` under that root, one JSON line each, truncated past 256 KB and free of transcripts and keys. See [local storage](docs/USER_GUIDE.md#local-storage-and-retention).
 
 ## Project references
 

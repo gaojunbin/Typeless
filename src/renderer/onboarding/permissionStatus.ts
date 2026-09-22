@@ -2,9 +2,9 @@ import type { AppSnapshot, Platform } from '../../shared/contracts';
 
 /** Shortcut health codes mapped to the copy shared by 基本设置 and the setup guide. */
 export const shortcutStatusMessages: Record<string, string> = {
-  helper_unavailable: '助手正在重新连接', input_monitoring_denied: '请授权辅助功能或输入监控',
-  tap_disabled: '监听不可用，正在恢复', tap_creation_failed: '监听不可用，正在恢复', runloop_source_failed: '监听不可用，正在恢复',
-  tap_stale: '已授权，正在启用监听…', relaunch_required: '已授权但未生效，请重新打开 Typeless',
+  helper_unavailable: '助手正在重新连接', input_monitoring_denied: '请授权辅助功能（升级后需移除旧条目重新添加）',
+  tap_disabled: '监听未生效，请检查权限', tap_creation_failed: '监听未生效，请检查权限', runloop_source_failed: '监听未生效，请检查权限',
+  relaunch_required: '已授权但监听未生效',
   binding_mismatch: '快捷键设置尚未生效', ready: '已就绪', disabled: '已关闭',
 };
 
