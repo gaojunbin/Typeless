@@ -1,6 +1,6 @@
-# Version 2.2.0 Validation
+# Version 2.2.1 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check). The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check). The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -16,7 +16,7 @@ Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 package
 | Visual inspection | Screenshots below come from the passing development runs at 1000 × 750 and were compared against the official Typeless 2.0 assets catalogued in `docs/research/ui-official-*.md`. |
 | Final packages | Both 2.0.0 packages built and passed integrity checks; the mounted macOS runtime passed as recorded above; Windows runtime remains untested. |
 
-Current screenshots (fake audio and mock providers, refreshed from the 2.2.0 development run): [首页](screenshots/home.png), [首页 with result](screenshots/dictation-result.png), [原文 view](screenshots/dictation-original.png), [recovery alert](screenshots/dictation-recovery.png), [AI 配置](screenshots/settings-ai.png), [AI 配置 in the 不润色 state](screenshots/settings-ai-writing-none.png), [基本设置 with the 关于 row](screenshots/settings-basic.png), [capsule recording](screenshots/voice-recording.png), [capsule controls](screenshots/voice-recording-controls.png), [capsule processing](screenshots/voice-processing.png), [processing with cancel](screenshots/voice-processing-controls.png), [delivery target](screenshots/delivery-target.png).
+Current screenshots (fake audio and mock providers, refreshed from the 2.2.0 development run; 基本设置 from the 2.2.1 run): [首页](screenshots/home.png), [首页 with result](screenshots/dictation-result.png), [原文 view](screenshots/dictation-original.png), [recovery alert](screenshots/dictation-recovery.png), [AI 配置](screenshots/settings-ai.png), [AI 配置 in the 不润色 state](screenshots/settings-ai-writing-none.png), [基本设置 with the 关于 row](screenshots/settings-basic.png), [capsule recording](screenshots/voice-recording.png), [capsule controls](screenshots/voice-recording-controls.png), [capsule processing](screenshots/voice-processing.png), [processing with cancel](screenshots/voice-processing-controls.png), [delivery target](screenshots/delivery-target.png).
 
 Production keeps completed dictation on the clipboard. Optional native paste sends the platform paste shortcut to the current foreground application; it does not capture an original field or require an editable role. Dispatch is not proof of acceptance by arbitrary applications. No Return/Enter is sent. Tests restore the original clipboard only during ownership-guarded cleanup. Existing preferences and encrypted keys from 0.1.5 remain readable; the settings schema did not change at 2.0.0. The setup-guide change recorded below adds one field, `general.setupCompleted`.
 
@@ -64,22 +64,42 @@ Requested after 2.1.1 shipped and specified in [UI design](UI_DESIGN.md) section
 | Visual review | The lead compared the run's screenshots against section 13: white pages, borders instead of tinted cards, colour only on status badges and the meter, no gradient anywhere in the shell or the guide. |
 | Packaged macOS desktop integration | Application launched from the read-only mounted 2.2.0 DMG: the first attempt failed in the new update stage because the packaged app starts slower and its automatic release check (15 s after launch) had already turned **检查更新** into **下载更新** before the harness clicked it; the stage now triggers the manual check through IPC and asserts on the resulting states, and the rerun passed with **39 checks and 4 mock HTTP requests**, receipt [`.local/desktop-e2e-wUZd0I/result.json`](../.local/desktop-e2e-wUZd0I/result.json). This is the only run in which the automatic check was observed to fire. |
 | Packaged macOS delivery | Same mounted application: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-LYg72w/result.json`](../.local/delivery-e2e-LYg72w/result.json). |
+| Real GitHub endpoint (after publication) | Run on 2026-09-22 once Release v2.2.0 was public. While the repository was still private the unauthenticated `releases/latest` call returned 404 and the 关于 row would have shown **检查失败**; the repository was made public and the checks below were repeated. (1) `UpdateChecker` against the live API with the installed version 2.2.0 → `none`; with 2.1.1 as current version → `available` naming `Typeless-2.2.0-arm64.dmg` (darwin/arm64) and `Typeless-2.2.0-win.zip` (win32/x64); the arm64 download followed GitHub's redirect, finished in 20 s, passed the `sha256:` digest GitHub publishes, and the file was byte-identical to `release/Typeless-2.2.0-arm64.dmg` (`hdiutil verify` valid). (2) The packaged 2.2.0 application launched from `release/mac-arm64` with no update URL override: the automatic check reported **已是最新** 19 s after launch, the manual **检查更新** repeated it, and no sidebar pill appeared. Afterwards the 关于 row's notes (更新说明 and the hints) were forced onto their own line under the badge and button, as section 13.5 specifies, because a short note had been rendering beside the button; `npm run test:desktop` on the rebuilt source passed **39 checks with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-7hJCLq/result.json`](../.local/desktop-e2e-7hJCLq/result.json), and its 基本设置 screenshot replaced the earlier one, which still showed 2.1.1. |
 
 ### Limits of this record
 
-- The release check was exercised only against the harness's loopback mock; the real GitHub endpoint, its rate limits, redirects to `objects.githubusercontent.com`, the automatic 15 s / 6 h schedule (packaged builds only) and `shell.openPath` on a real DMG were not observed by any run.
+- The live GitHub run above covered one check and one download from one machine; rate limiting, the 6 h repeat and `shell.openPath` on a real DMG from inside the application were not observed. The published 2.2.0 build does not contain the 关于 row note-placement fix; 2.2.1 does.
 - Only the darwin / arm64 asset rule was exercised end to end; `-x64.dmg` and `-win.zip` selection is unit-tested only.
 - The 关于 row states `downloading` and `error` were rendered only in the unit tests' state transitions, not photographed.
 - Windows runtime remains untested; the Windows install hint in the 关于 row was not shown on a Windows machine.
+
+## Note placement fix and live release check (2.2.1, 2026-09-22)
+
+Requested after the live GitHub verification recorded above. Source changes: `src/renderer/styles/preferences.css` forces the 关于 row notes (更新说明 and the hints) onto their own line under the badge and button, as [UI design](UI_DESIGN.md) section 13.5 specifies; the README build steps use a generic checkout path; the 基本设置 screenshot was refreshed; the version string is 2.2.1. Dictation, providers, settings storage, the setup guide and the release-check logic are unchanged.
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean. `npm run build` completed its native, typecheck, Vite and esbuild steps. `native/bin/typeless-native --self-test` passed (`shortcut-and-paste-policy`). |
+| Automated regressions | `npm test`: **109 tests in 12 files passed** (unchanged from 2.2.0). |
+| Development desktop integration | `npm run test:desktop` on the final source: **39 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-02NFI7/result.json`](../.local/desktop-e2e-02NFI7/result.json). |
+| Development delivery | `npm run test:delivery` on the final source: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-WVsXvd/result.json`](../.local/delivery-e2e-WVsXvd/result.json). |
+| Packaged macOS desktop integration | Application launched from the read-only mounted 2.2.1 DMG: **39 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-FKw9O3/result.json`](../.local/desktop-e2e-FKw9O3/result.json). |
+| Packaged macOS delivery | Same mounted application: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-n8c1t1/result.json`](../.local/delivery-e2e-n8c1t1/result.json). |
+| Visual check | The 关于 row was photographed from the rebuilt renderer in the `none` state (更新说明 under 检查更新, right-aligned, after a live check) and in the `downloaded` state by the desktop run ([基本设置](screenshots/settings-basic.png)). |
+
+### Limits of this record
+
+- The 2.2.1 packages themselves were not pointed at the live GitHub endpoint; the live observations above used the packaged 2.2.0 build and checker code that did not change in 2.2.1. A 2.2.0 installation showing the 有新版本 2.2.1 pill after Release v2.2.1 is published has not been observed yet.
+- The 2.2.0 limits (asset rule coverage, unphotographed `downloading` / `error` states, Windows runtime) still apply.
 
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.2.0-arm64.dmg) | Verified | 131,062,809 | `8d8555499c2f835e4f4db80adcfea8124974182abc6e027bb8ef782ebd64e77f` |
-| [Windows x64 portable ZIP](../release/Typeless-2.2.0-win.zip) | Integrity verified | 157,576,546 | `7b3a0162174e434df2428e53f6f3f58996625095ef6cd07d066e916aba47ae4d` |
+| [macOS arm64 DMG](../release/Typeless-2.2.1-arm64.dmg) | Verified | 131,062,595 | `431084f80cc233ea810e62cdf39adecff35e163818489cc405188790239ea1fc` |
+| [Windows x64 portable ZIP](../release/Typeless-2.2.1-win.zip) | Integrity verified | 157,576,429 | `01cfa3a070b340e376a6e231b95c2ee78ebb493a1be9e1610487d3a29984cd30` |
 
-The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.2.0 and a minimum macOS of 13.0, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.2.1 and a minimum macOS of 13.0, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
 
 The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file, and `resources/app.asar` is byte-identical to the macOS bundle's. macOS is ad-hoc signed without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 
@@ -88,7 +108,7 @@ The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `reso
 Run from the checkout with npm dependencies and host build tools installed. No real provider credentials are needed.
 
 ```sh
-cd /Users/junbingao/github/Typeless
+cd path/to/Typeless
 npm run typecheck
 npm test
 npm run build
@@ -101,18 +121,18 @@ npm run test:delivery
 Both Electron harnesses create isolated `.local/` profiles and use fake audio, mock loopback providers, synthetic keys and test-only credential encryption. They use real Electron IPC; the delivery harness additionally uses real native paste into its own disposable editor. Run GUI checks serially, with the desktop available. They do not grant OS permissions or send real messages.
 
 ```sh
-cd /Users/junbingao/github/Typeless
+cd path/to/Typeless
 npm run package:mac
 npm run package:win
-hdiutil verify release/Typeless-2.2.0-arm64.dmg
+hdiutil verify release/Typeless-2.2.1-arm64.dmg
 codesign --verify --deep --strict --verbose=2 release/mac-arm64/Typeless.app
-unzip -t release/Typeless-2.2.0-win.zip
-shasum -a 256 release/Typeless-2.2.0-arm64.dmg release/Typeless-2.2.0-win.zip
+unzip -t release/Typeless-2.2.1-win.zip
+shasum -a 256 release/Typeless-2.2.1-arm64.dmg release/Typeless-2.2.1-win.zip
 mkdir -p .cache/dmg-acceptance
-hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.2.0-arm64.dmg
+hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.2.1-arm64.dmg
 codesign --verify --deep --strict --verbose=2 .cache/dmg-acceptance/Typeless.app
-TYPELESS_EXECUTABLE="/Users/junbingao/github/Typeless/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:desktop
-TYPELESS_EXECUTABLE="/Users/junbingao/github/Typeless/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:delivery
+TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:desktop
+TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:delivery
 hdiutil detach .cache/dmg-acceptance
 ```
 

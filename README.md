@@ -47,7 +47,7 @@ The result card on **首页** offers **整理后** and **原文** views with a c
 Use Node.js supported by the locked dependencies and npm. macOS native builds require Xcode Command Line Tools. From this checkout:
 
 ```sh
-cd /Users/junbingao/github/Typeless
+cd path/to/Typeless
 npm ci
 npm run build
 npm start
@@ -70,10 +70,10 @@ Build before desktop tests. `test:desktop` exercises real Electron IPC, configur
 
 ## Packaging
 
-The 2.2.0 build targets are:
+The 2.2.1 build targets are:
 
-- macOS Apple silicon: [Typeless-2.2.0-arm64.dmg](release/Typeless-2.2.0-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
-- Windows x64 portable: [Typeless-2.2.0-win.zip](release/Typeless-2.2.0-win.zip).
+- macOS Apple silicon: [Typeless-2.2.1-arm64.dmg](release/Typeless-2.2.1-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
+- Windows x64 portable: [Typeless-2.2.1-win.zip](release/Typeless-2.2.1-win.zip).
 
 These are output locations, not release or acceptance claims. Consult [Validation](docs/VALIDATION.md) for the artifacts actually built and checked.
 

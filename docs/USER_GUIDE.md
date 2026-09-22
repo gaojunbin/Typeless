@@ -4,7 +4,7 @@ This guide describes the reduced dictation interface. UI labels are shown in Chi
 
 ## Open the application
 
-The 2.2.0 package output locations are [Typeless-2.2.0-arm64.dmg](../release/Typeless-2.2.0-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.0-win.zip](../release/Typeless-2.2.0-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact.
+The 2.2.1 package output locations are [Typeless-2.2.1-arm64.dmg](../release/Typeless-2.2.1-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.1-win.zip](../release/Typeless-2.2.1-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact.
 
 From source, run `npm ci`, `npm run build`, then `npm start` in the checkout. The first run contains no API keys.
 
