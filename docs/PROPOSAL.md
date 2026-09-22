@@ -1,12 +1,12 @@
 # Typeless: current product scope and implementation plan
 
-Date: 2026-09-18, revised 2026-09-22. Target version: 2.1.1. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
+Date: 2026-09-18, revised 2026-09-22. Target version: 2.2.0. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
 
 ## Product direction
 
 Build a small personal AI dictation utility for macOS and Windows: tap, speak, tap again, and receive faithful text on the clipboard with optional paste into the current application. Use a quiet tray/menu-bar presence, a compact non-activating capsule, and one light window that carries both dictation status and configuration. No application account, hosted backend or sync is required.
 
-A new installation opens a first-run setup guide before that shell, so system permissions, the microphone and the shortcut are settled before any provider form is shown; an installation upgraded from an earlier version keeps its existing settings and never sees it. The window is a two-column shell: a sidebar with four destinations, **首页**, **AI 配置**, **基本设置** and **表达风格**, and a content column that renders the selected one. **首页** holds the dictation control, the active shortcuts, the conditional current result with its recovery actions, a configuration overview linking to the other three destinations, and a status summary. The three configuration destinations remain one click away with no second navigation layer. The product stays limited to dictation, necessary AI connections, basic preferences and writing style; additional management surfaces are outside this scope. The visual specification for the shell, its pages and the capsule lives in [UI design](UI_DESIGN.md).
+A new installation opens a first-run setup guide before that shell, so system permissions, the microphone and the shortcut are settled before any provider form is shown; an installation upgraded from an earlier version keeps its existing settings and never sees it. The window is a two-column shell on a white background: a sidebar with three destinations, **首页**, **AI 配置** and **基本设置**, and a content column that renders the selected one. **首页** holds the dictation control, the conditional current result with its recovery actions, and one status list whose three rows (speech recognition, text polishing, shortcut) link to the configuration destinations; getting-started guidance lives only in the setup guide, and no status is repeated across the page. Writing style is part of **AI 配置**, inside the text-polishing form. The two configuration destinations remain one click away with no second navigation layer. The product stays limited to dictation, necessary AI connections, basic preferences and writing style; additional management surfaces are outside this scope. The visual specification for the shell, its pages and the capsule lives in [UI design](UI_DESIGN.md).
 
 The [complete Quickstart review](research/quickstart-review.md), with [dictation/action evidence](research/quickstart-dictation-and-actions.md) and [preferences/recovery evidence](research/quickstart-preferences-and-learning.md), distinguishes published interface evidence from inference. The earlier [settings study](research/settings-simplification.md) covers only that narrower topic. Official screenshots support flat setting rows and direct controls. They do not establish vendor autosave persistence or a three-level polishing selector. Our three-level control and atomic provider form are explicit project decisions.
 
@@ -14,7 +14,7 @@ The [complete Quickstart review](research/quickstart-review.md), with [dictation
 
 | Surface | Contents | Save behavior |
 | --- | --- | --- |
-| Home | Dictation control, shortcut status, current result with its recovery actions, configuration overview and status summary | No setting is edited here; its cards and buttons navigate to the configuration destinations |
+| Home | Dictation control, current result with its recovery actions, and a three-row status list | No setting is edited here; its cards and buttons navigate to the configuration destinations |
 | AI configuration | Independent speech and polishing provider forms, each with endpoint, model, credential, and speech protocol where needed | One explicit Save per provider submits its fields atomically; failed saves retain the draft and show an error |
 | Basic settings | Microphone, primary/fallback shortcuts, automatic paste, sounds, login startup, permission status with its recovery controls, the setup guide and a diagnostics copy | Switches/selectors save immediately; text saves on blur or Enter; failures expose retry |
 | Writing style | Unchanged transcription, light polishing, strong polishing, optional personal instructions | Level saves immediately; multiline instructions save on blur or Command/Ctrl+Enter |
@@ -82,7 +82,7 @@ The [implementation decision](IMPLEMENTATION_DECISION.md) explains the Electron/
 
 Implementation and validation are separate. Required checks include:
 
-1. Four sidebar destinations: **首页** plus exactly three configuration destinations; no extra navigation step to reach their core controls.
+1. Three sidebar destinations: **首页** plus exactly two configuration destinations, with writing style inside **AI 配置**; no extra navigation step to reach their core controls.
 2. Immediate level/select/switch saving, text-field commit behavior, failure feedback and restart persistence.
 3. Independent atomic provider saves, retained drafts on failure, no echoed keys, credential-origin binding and no plaintext persistence.
 4. Real capture framing, correct provider routes, unchanged-transcript mode with no cleanup request, and raw fallback on cleanup failure.
@@ -94,6 +94,6 @@ Implementation and validation are separate. Required checks include:
 
 Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Version 2.1.1 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication, automatic updates or platform-runtime acceptance. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
+Version 2.2.0 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest; it never replaces itself, because ad-hoc signed builds must be reinstalled and re-authorized by hand. The [README](../README.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
 Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

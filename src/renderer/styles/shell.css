@@ -33,15 +33,16 @@ body[data-platform="darwin"] .sidebar { padding-top: 56px; }
 .sidebar .nav-item.selected { background: var(--bg-selected); }
 .sidebar .nav-item.selected svg { color: var(--text); }
 
-.sidebar .sidebar-footer {
-  margin-top: auto;
-  padding: 12px 14px;
-  border: 1px solid var(--line); border-radius: var(--radius-md);
-  background: var(--bg);
+/* Update pill: the only footer content, and only while a newer release exists. */
+.sidebar .sidebar-update {
+  justify-content: flex-start; gap: 8px;
+  margin-top: auto; width: 100%; height: auto; padding: 10px 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  background: var(--bg); color: var(--text);
+  font-size: var(--fs-body); font-weight: 500; white-space: normal; text-align: left;
 }
-.sidebar-footer-caption { display: block; color: var(--text-tertiary); font-size: var(--fs-caption); line-height: 1.4; }
-.sidebar-footer-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 8px; margin-top: 8px; min-width: 0; }
-.sidebar-footer-row .keychips { flex-wrap: wrap; row-gap: 4px; }
+.sidebar .sidebar-update:hover:not(:disabled) { background: var(--bg-hover); }
+.sidebar .sidebar-update svg { color: var(--text-secondary); }
 
 /* Content column */
 .content { overflow: auto; padding: var(--content-pad-y) var(--content-pad-x); background: var(--bg); }

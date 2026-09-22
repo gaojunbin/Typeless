@@ -6,12 +6,11 @@ This is an independent implementation, not the commercial Typeless service. Curr
 
 ## A two-column window
 
-The main window is a two-column shell. A fixed sidebar carries the application mark, four destinations and a card showing the effective dictation shortcut with its status. The content column scrolls on its own and prints the current version at its lower right.
+The main window is a two-column shell on a white background. A fixed sidebar carries the application mark (the same seven-bar waveform as the Dock icon) and three destinations; while a newer release is available it also shows a small **有新版本** pill that opens **基本设置**. The content column scrolls on its own. Colour is reserved for status badges.
 
-- **首页:** the **说话，不打字** hero, the dictation card with its start/stop button, shortcut keycaps, recording waveform, recovery alert and current result, a shortcut card for the primary and fallback bindings, a **配置概览** row of three status cards that open the other destinations, and a side rail with a status summary and a **三步开始** quick start.
-- **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button; the speech connection also selects the **小米 MiMo** or **OpenAI 兼容** protocol.
-- **基本设置:** rows grouped under **快捷键**, **音频**, **通用** and **系统权限**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior, permission status, a **重新运行设置向导** button and a **复制诊断信息** button that puts the version, permissions and recent helper status on the clipboard.
-- **表达风格:** **不润色**, **轻度润色**, or **强力润色**, plus optional **个人表达说明**.
+- **首页:** the **说话，不打字** title, the dictation card with its start/stop button, shortcut keycaps, recording waveform, recovery alert and current result, and a three-row status list (**语音识别**, **文字润色**, **快捷键**) whose rows open the matching destination. Nothing else repeats the shortcut or its status.
+- **AI 配置:** independent speech-recognition and text-polishing connections. Each connection has its own endpoint, model and API key, saved together with its **保存** button; the speech connection also selects the **小米 MiMo** or **OpenAI 兼容** protocol. The **文字润色** form also holds the polishing level (**不润色**, **轻度润色**, **强力润色**) above the connection fields and the optional **个人表达说明** below them; both save on their own.
+- **基本设置:** rows grouped under **快捷键**, **音频**, **通用**, **系统权限** and **关于**: microphone, primary and fallback shortcuts, automatic paste, recording sounds, startup behavior, permission status, a **重新运行设置向导** button, a **复制诊断信息** button that puts the version, permissions and recent helper status on the clipboard, and the **版本** row with **检查更新**, which asks GitHub for the latest release, downloads its installer on request and then opens it for you (see below).
 
 Switches, selectors and the polishing level save immediately. Text preferences save on blur or Enter; multiline instructions use blur or Command/Ctrl+Enter. A failed save remains visible and can be retried. There is no global Save action and no second navigation layer for settings. Provider credentials deliberately use an explicit atomic save rather than saving partially edited addresses or keys.
 
@@ -30,10 +29,12 @@ Finishing or skipping the guide records it as complete, and the shell then opens
 
 Then connect the providers and dictate:
 
-1. From **首页**, the **配置语音** button and the **语音识别** overview card open **AI 配置** as well. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
-2. Configure the independent **文字润色** connection using your text provider's base URL, model and key, then save it. Alternatively, select **表达风格 → 不润色** for recognition alone. Do not append `/chat/completions` to a base URL.
+1. From **首页**, the **配置语音** button and the **语音识别** status row open **AI 配置** as well. The speech preset is Xiaomi MiMo, `https://api.xiaomimimo.com/v1`, model `mimo-v2.5-asr`; enter your own key and click that connection's **保存**. The alternative OpenAI-compatible adapter uses multipart `/audio/transcriptions`.
+2. Configure the independent **文字润色** connection using your text provider's base URL, model and key, then save it. Alternatively, select **不润色** at the top of that form for recognition alone. Do not append `/chat/completions` to a base URL.
 3. In **基本设置**, select a microphone and review permissions. A macOS Accessibility grant made while the app runs normally takes effect within one status poll; if the shortcut keeps reporting **已授权但监听未生效**, use **重新打开 Typeless** on that row, and remove and re-add Typeless under 辅助功能 and 输入监控 when the relaunched app still shows the permission as pending. **复制诊断信息** in the same group collects the details for a bug report. The **首页** button can record and copy even when native shortcut or paste permissions are unavailable.
 4. Click **开始听写** on **首页**, or use the shortcut from any application. Tap again, click **结束听写**, or click the capsule's confirm circle to finish. The bottom-center capsule is black and shows a cancel circle, a white waveform and a confirm circle, all visible without hovering; the remaining time joins them for the last ten seconds of the recording cap. Processing replaces the waveform and confirm circle with **思考中** and keeps cancel, then the capsule disappears after copying and the optional paste attempt. Click an error capsule to open recovery.
+
+Updates: **基本设置 → 关于** checks GitHub Releases 15 seconds after launch and every six hours in a packaged app (`TYPELESS_UPDATE_URL` overrides the endpoint; `off` disables the automatic check), and **检查更新** does it on demand. A newer release shows **有新版本** in the sidebar and in that row; **下载更新** fetches the installer for this platform into the Downloads folder, verifies GitHub's digest when one is published, and **打开安装包** opens it. Installing is still manual: drag the new app into Applications and grant the permissions again, because ad-hoc signed builds change identity on every release.
 
 macOS uses isolated Fn taps; Windows uses isolated Right Alt taps. The default fallback is Command/Ctrl+Shift+Space. Fn hardware behavior is not universal on Windows, and AltGr combinations must remain normal typing. If macOS Fn/Globe also triggers a system action, review its keyboard setting or use the fallback; the app does not change that system assignment.
 
@@ -69,10 +70,10 @@ Build before desktop tests. `test:desktop` exercises real Electron IPC, configur
 
 ## Packaging
 
-The 2.1.1 build targets are:
+The 2.2.0 build targets are:
 
-- macOS Apple silicon: [Typeless-2.1.1-arm64.dmg](release/Typeless-2.1.1-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
-- Windows x64 portable: [Typeless-2.1.1-win.zip](release/Typeless-2.1.1-win.zip).
+- macOS Apple silicon: [Typeless-2.2.0-arm64.dmg](release/Typeless-2.2.0-arm64.dmg), with the unpacked [Typeless.app](release/mac-arm64/Typeless.app).
+- Windows x64 portable: [Typeless-2.2.0-win.zip](release/Typeless-2.2.0-win.zip).
 
 These are output locations, not release or acceptance claims. Consult [Validation](docs/VALIDATION.md) for the artifacts actually built and checked.
 

@@ -14,6 +14,7 @@ function previewBridge(): TypelessBridge {
       general: { launchAtLogin: false, autoInsert: true, setupCompleted: location.hash !== '#setup' },
     },
     session: { id: '', status: 'idle', startedAt: 0, durationMs: 0, level: 0, rawText: '', text: '', inserted: false, canRetry: false },
+    update: { status: 'none', currentVersion: '界面预览', checkedAt: Date.now() },
     permissions: { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', primaryShortcutAvailable: false, fallbackShortcutAvailable: false, inputMonitoring: false, shortcutMessage: '', shortcutPresses: 0 },
   };
   const listeners = new Set<(value: AppSnapshot) => void>();
@@ -40,6 +41,10 @@ function previewBridge(): TypelessBridge {
         case 'permissions.open':
         case 'app.relaunch':
         case 'diagnostics.copy':
+        case 'update.check':
+        case 'update.download':
+        case 'update.open':
+        case 'update.openRelease':
           return { ok: true };
         default:
           return { ok: false, message: '请在桌面应用中使用录音和系统功能。' };

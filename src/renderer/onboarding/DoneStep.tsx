@@ -1,6 +1,7 @@
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import type { AppSnapshot } from '../../shared/contracts';
-import { assistantLabel, assistantStatus, microphoneStatus, primaryShortcutStatus, type PermissionStatus } from './permissionStatus';
+import { assistantLabel, assistantStatus, microphoneStatus, primaryShortcutStatus, shortcutDisabled, type PermissionStatus } from './permissionStatus';
+import { shortcutLabel } from '../shortcutPresentation';
 import { CapsuleHero } from './CapsuleHero';
 import { StepLayout } from './StepLayout';
 
@@ -10,6 +11,19 @@ function ChecklistRow({ label, status }: { label: string; status: PermissionStat
     <span className="check-label">{label}</span>
     <span className="check-value">{status.text}</span>
   </p>;
+}
+
+/** What is left after the guide, shown only while no speech key is saved. */
+function NextSteps({ snapshot }: { snapshot: AppSnapshot }) {
+  const mac = snapshot.platform === 'darwin';
+  // The fallback chord carries dictation whenever the isolated primary key is turned off.
+  const binding = shortcutDisabled(snapshot) ? snapshot.settings.shortcut.fallback : mac ? 'Fn' : 'RightAlt';
+  return <div className="next-steps">
+    <span className="next-steps-title">接下来</span>
+    <p>1. 连接语音识别服务</p>
+    <p>2. 选择润色程度</p>
+    <p>3. 在任何应用按 {shortcutLabel(binding, mac)} 开口</p>
+  </div>;
 }
 
 export function DoneStep({ snapshot, onBack, onFinish }: { snapshot: AppSnapshot; onBack: () => void; onFinish: () => void }) {
@@ -26,5 +40,6 @@ export function DoneStep({ snapshot, onBack, onFinish }: { snapshot: AppSnapshot
       <ChecklistRow label={assistantLabel(snapshot.platform)} status={assistantStatus(snapshot)} />
       <ChecklistRow label="快捷键" status={primaryShortcutStatus(snapshot)} />
     </div>
+    {!connected && <NextSteps snapshot={snapshot} />}
   </StepLayout>;
 }

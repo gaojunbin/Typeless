@@ -1,4 +1,5 @@
 import { _electron as electron, expect } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -11,7 +12,13 @@ await mkdir(join(root, '.local'), { recursive: true });
 const dataRoot = await mkdtemp(join(root, '.local', 'desktop-e2e-'));
 const requests = [];
 let slow = false;
+// A fake newer release served by the same loopback server drives the update stage; its requests are not provider traffic.
+const updatePayload = Buffer.from('fake installer bytes for the update stage '.repeat(64));
+const updateDigest = `sha256:${createHash('sha256').update(updatePayload).digest('hex')}`;
+const updateAssets = origin => ['Typeless-99.0.0-arm64.dmg', 'Typeless-99.0.0-x64.dmg', 'Typeless-99.0.0-win.zip'].map(name => ({ name, browser_download_url: `${origin}/download/${name}`, size: updatePayload.length, digest: updateDigest }));
 const server = createServer(async (request, response) => {
+  if (request.url === '/releases/latest') { const origin = `http://${request.headers.host}`; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify({ tag_name: 'v99.0.0', html_url: 'https://github.com/gaojunbin/Typeless/releases/tag/v99.0.0', assets: updateAssets(origin) })); return; }
+  if (request.url?.startsWith('/download/')) { response.setHeader('Content-Type', 'application/octet-stream'); response.setHeader('Content-Length', String(updatePayload.length)); response.end(updatePayload); return; }
   let raw = '';
   try { for await (const chunk of request) { raw += chunk; if (raw.length > 10000000) { response.writeHead(413).end(); return; } } } catch { return; }
   const body = raw ? JSON.parse(raw) : undefined;
@@ -51,7 +58,7 @@ async function closeInstance(instance) {
 }
 async function launch() {
   stage('launch');
-  const env = { ...process.env, TYPELESS_DATA_DIR: dataRoot, ELECTRON_ENABLE_LOGGING: '0' };
+  const env = { ...process.env, TYPELESS_DATA_DIR: dataRoot, ELECTRON_ENABLE_LOGGING: '0', TYPELESS_UPDATE_URL: `${baseUrl.replace(/\/v1$/, '')}/releases/latest` };
   delete env.ELECTRON_RUN_AS_NODE; delete env.VITE_DEV_SERVER_URL;
   const instance = await electron.launch({ executablePath: process.env.TYPELESS_EXECUTABLE || undefined, args: [...(process.env.TYPELESS_EXECUTABLE ? [] : [root]), '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'], env, timeout: 30000 });
   activeInstance = instance;
@@ -246,13 +253,13 @@ try {
   assert.equal(missing.ok, false); assert.match(missing.message, /API key/);
   assert.equal(requests.length, 0);
   assert.equal(await page.getByRole('button', { name: '保存设置', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('tab').count(), 4);
+  assert.equal(await page.getByRole('tab').count(), 3);
   const waitSettings = async expected => page.waitForFunction(async expected => {
     const { settings } = await window.typeless.getSnapshot();
     return Object.entries(expected).every(([group, fields]) => Object.entries(fields).every(([key, value]) => settings[group][key] === value));
   }, expected);
   const setLevel = async (value, enabled, strength) => {
-    await openTab('表达风格');
+    await openTab('AI 配置');
     await page.getByRole('button', { name: { none: '不润色', light: '轻度润色', strong: '强力润色' }[value], exact: true }).click();
     await waitSettings({ cleanup: { enabled }, writing: { strength } });
   };
@@ -480,6 +487,28 @@ try {
   assert.equal(requests.slice(beforeCancel).filter(item => item.body?.model === 'test-cleanup').length, 0);
   slow = false;
 
+  stage('home status list and update check');
+  await openTab('首页');
+  await expect(page.locator('.status-list .status-row')).toHaveCount(3);
+  assert.equal(await page.locator('.home-hero, .usecase-grid, .home-rail, .quickstart-card, .home-version, .sidebar-footer').count(), 0);
+  await page.screenshot({ path: join(dataRoot, 'home.png'), animations: 'disabled' });
+  await openTab('AI 配置');
+  await expect(provider('文字润色').getByRole('button', { name: '强力润色', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(provider('文字润色').getByLabel('个人表达说明')).toBeVisible();
+  await page.screenshot({ path: join(dataRoot, 'ai.png'), fullPage: true, animations: 'disabled' });
+  await openTab('基本设置');
+  // The automatic check may already have run (15 s after launch), so trigger the manual one through IPC instead of the button whose label depends on timing.
+  assert.equal((await dispatch(page, { type: 'update.check' })).ok, true);
+  await expect(page.locator('.about-row .badge')).toHaveText(/有新版本 99\.0\.0/, { timeout: 10000 });
+  await expect(page.locator('.sidebar-update')).toHaveText(/99\.0\.0/);
+  await page.getByRole('button', { name: '下载更新', exact: true }).click();
+  await expect(page.getByRole('button', { name: '打开安装包', exact: true })).toBeVisible({ timeout: 15000 });
+  const updateState = (await snapshot(page)).update;
+  assert.equal(updateState.status, 'downloaded');
+  assert.ok(updateState.filePath.startsWith(join(dataRoot, 'downloads')), 'The installer must land in the profile downloads folder.');
+  assert.equal((await readFile(updateState.filePath)).length, updatePayload.length);
+  assert.equal(await page.locator('.sidebar-update').count(), 0, 'The sidebar pill disappears once the installer is downloaded.');
+  await page.screenshot({ path: join(dataRoot, 'basic.png'), fullPage: true, animations: 'disabled' });
   stage('restart persistence');
   await closeInstance(app); app = undefined;
   launched = await launch(); app = launched.instance; page = launched.page;
@@ -491,7 +520,7 @@ try {
   assert.equal(current.settings.general.autoInsert, false); assert.equal(current.settings.shortcut.primary, 'Disabled');
   assert.equal(current.settings.cleanup.enabled, true); assert.equal(current.settings.writing.strength, 'balanced');
   assert.equal(current.settings.writing.instructions, instructions);
-  await openTab('表达风格');
+  await openTab('AI 配置');
   await expect(page.getByRole('button', { name: '强力润色', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await openTab('基本设置');
   await expect(page.getByRole('switch', { name: '完成后自动粘贴', exact: true })).not.toBeChecked();
@@ -501,7 +530,7 @@ try {
   await expect(provider('文字润色').getByLabel(/^润色 API 密钥/)).toHaveValue('');
   stage('minimum-window layout');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).setSize(880, 600));
-  for (const [name, file] of [['首页', 'home'], ['AI 配置', 'ai'], ['基本设置', 'basic'], ['表达风格', 'style']]) {
+  for (const [name, file] of [['首页', 'home'], ['AI 配置', 'ai'], ['基本设置', 'basic']]) {
     await openTab(name);
     await expect(page.getByRole('tabpanel')).toHaveCount(1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally.`);
@@ -509,7 +538,7 @@ try {
   }
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

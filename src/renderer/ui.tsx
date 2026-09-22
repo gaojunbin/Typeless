@@ -58,6 +58,14 @@ export function StatusBadge({ tone, children }: { tone: 'ok' | 'warn' | 'muted' 
 
 export function Busy({ size = 16 }: { size?: number }) { return <LoaderCircle size={size} className="spin" aria-hidden="true" />; }
 
+/** The application icon's seven-bar mark as a vector, so the sidebar and the setup guide match the Dock icon exactly. */
+export function BrandMark({ size = 22, className }: { size?: number; className?: string }) {
+  const bars = [3, 6, 9, 12, 9, 6, 3];
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    {bars.map((height, index) => <rect key={index} x={2 + index * 3} y={12 - height / 2} width={2} height={height} rx={1} />)}
+  </svg>;
+}
+
 export function Wave({ level, active, bars = 27 }: { level: number; active: boolean; bars?: number }) {
   const amplitude = Math.max(0, Math.min(1, level));
   return <div className={`wave ${active ? 'active' : ''}`} aria-hidden="true">{Array.from({ length: bars }, (_, index) => <i key={index} style={{ height: `${active ? 3 + (Math.sin(index * 2.3) + 1.3) * amplitude * 20 : 3}px` }} />)}</div>;

@@ -1,8 +1,9 @@
 import '../styles/providers.css';
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Sparkles } from 'lucide-react';
+import { Mic, PenLine } from 'lucide-react';
 import { PageHeader, SectionGroup, SettingRow } from '../ui';
 import type { SettingsSectionProps } from './types';
+import { WritingInstructionsRow, WritingLevelRow } from './Writing';
 
 type Provider = 'asr' | 'cleanup';
 interface ProviderDraft { baseUrl: string; model: string; kind: 'mimo' | 'openai' }
@@ -61,7 +62,8 @@ function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { prov
   const keyHint = originChanged && saved.hasApiKey ? '地址或协议已变更，请重新输入密钥。'
     : saved.hasApiKey ? '已保存；留空保留。' : '密钥仅保存在本机，不会回显。';
   return <form className="provider-panel" onSubmit={event => { event.preventDefault(); void save(); }}>
-    <SectionGroup icon={speech ? <Mic size={20} strokeWidth={1.5} /> : <Sparkles size={20} strokeWidth={1.5} />} title={speech ? '语音识别' : '文字润色'}>
+    <SectionGroup icon={speech ? <Mic size={20} strokeWidth={1.5} /> : <PenLine size={20} strokeWidth={1.5} />} title={speech ? '语音识别' : '文字润色'}>
+      {!speech && <><WritingLevelRow snapshot={snapshot} run={run} /><div className="provider-divider" /></>}
       <fieldset disabled={busy}>
         {speech && <SettingRow
           stacked
@@ -100,13 +102,14 @@ function ProviderForm({ provider, snapshot, run }: SettingsSectionProps & { prov
         </div>
       </fieldset>
       {error && <p className="error-text" role="alert">{error}</p>}
+      {!speech && <><div className="provider-divider" /><WritingInstructionsRow snapshot={snapshot} run={run} /></>}
     </SectionGroup>
   </form>;
 }
 
 export function Providers(props: SettingsSectionProps) {
   return <>
-    <PageHeader title="AI 配置" subtitle="语音识别与文字润色分别连接你自己的模型服务，密钥只保存在本机。" />
+    <PageHeader title="AI 配置" subtitle="语音识别与文字润色分别连接你自己的模型服务，并在这里设置润色方式；密钥只保存在本机。" />
     <ProviderForm {...props} provider="asr" />
     <ProviderForm {...props} provider="cleanup" />
     <p className="providers-footnote">音频发送至语音服务；开启润色后，文字发送至润色服务。</p>

@@ -1,4 +1,4 @@
-import type { AppAction, ActionResult, AppSnapshot, CaptureCommand, CaptureEvent, Permissions } from '../src/shared/contracts';
+import type { AppAction, ActionResult, AppSnapshot, CaptureCommand, CaptureEvent, Permissions, UpdateState } from '../src/shared/contracts';
 import { Store } from '../src/core/store';
 import { Providers } from '../src/core/providers';
 import { Sessions } from '../src/core/session';
@@ -15,15 +15,23 @@ export interface ControllerHost {
   quit(): void;
   relaunch(): void;
   copyDiagnostics(): Promise<void>;
+  checkUpdate(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  openUpdate(): Promise<void>;
+  openReleasePage(): Promise<void>;
   settingsChanged(changes: { login: boolean; shortcut: boolean }): Promise<void>;
 }
 export class Controller {
   readonly sessions: Sessions;
   private permissions: Permissions = { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', inputMonitoring: false, primaryShortcutAvailable: false, fallbackShortcutAvailable: false, shortcutMessage: 'helper_unavailable', shortcutPresses: 0 };
+  private update: UpdateState;
   constructor(private store: Store, private providers: Providers, private host: ControllerHost, private version: string) {
+    this.update = { status: 'idle', currentVersion: version };
     this.sessions = new Sessions(store, providers, { ...host, changed: () => this.publish() });
   }
-  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions }; }
+  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions, update: this.update }; }
+  /** Main owns the release check; it pushes each transition here so every window sees it. */
+  setUpdate(update: UpdateState) { this.update = update; this.publish(); }
   publish() { this.host.publish(this.snapshot()); }
   async refreshPermissions(request?: 'microphone' | 'accessibility') {
     const next = await this.host.permissions(request);
@@ -62,6 +70,10 @@ export class Controller {
         case 'app.quit': this.host.quit(); break;
         case 'app.relaunch': this.host.relaunch(); break;
         case 'diagnostics.copy': await this.host.copyDiagnostics(); break;
+        case 'update.check': await this.host.checkUpdate(); break;
+        case 'update.download': await this.host.downloadUpdate(); break;
+        case 'update.open': await this.host.openUpdate(); break;
+        case 'update.openRelease': await this.host.openReleasePage(); break;
         default: throw new Error('Unsupported action.');
       }
       this.publish(); return { ok: true };

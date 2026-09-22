@@ -222,7 +222,7 @@ describe('configuration application', () => {
   it('does not reconfigure shortcuts for unrelated saves and distinguishes persisted settings from OS apply failure', async () => {
     const { store, provider, host } = setup();
     const settingsChanged = vi.fn(async (_changes: { login: boolean; shortcut: boolean }) => {});
-    const controller = new Controller(store, provider, { ...host, settingsChanged, publish: vi.fn(), permissions: vi.fn(), openPane: vi.fn(), microphoneTest: vi.fn(), show: vi.fn(), hide: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), copyDiagnostics: vi.fn(async () => {}) }, 'test');
+    const controller = new Controller(store, provider, { ...host, settingsChanged, publish: vi.fn(), permissions: vi.fn(), openPane: vi.fn(), microphoneTest: vi.fn(), show: vi.fn(), hide: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), copyDiagnostics: vi.fn(async () => {}), checkUpdate: vi.fn(async () => {}), downloadUpdate: vi.fn(async () => {}), openUpdate: vi.fn(async () => {}), openReleasePage: vi.fn(async () => {}) }, 'test');
     expect((await controller.dispatch({ type: 'settings.save', patch: { writing: { instructions: 'Use concise prose.' } } })).ok).toBe(true);
     expect(settingsChanged).not.toHaveBeenCalled();
     settingsChanged.mockRejectedValueOnce(new Error('OS permission denied.'));

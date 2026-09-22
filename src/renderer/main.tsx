@@ -10,7 +10,7 @@ import { bridge, isPreview } from './bridge';
 import { installCapture } from './audio';
 import { installInteractionSounds } from './sounds';
 import { Providers } from './settings/Providers';
-import { BasicSettings, WritingSettings } from './settings/Preferences';
+import { BasicSettings } from './settings/Preferences';
 import type { Page, RunAction, SettingsTab } from './settings/types';
 import { Busy } from './ui';
 import { VoiceOverlay } from './VoiceOverlay';
@@ -83,8 +83,7 @@ function App() {
         <div key={current} className={`page ${current === 'home' ? 'page-home' : ''}`.trim()} role="tabpanel" id={`settings-panel-${current}`} aria-labelledby={`settings-tab-${current}`}>
           {current === 'home' ? <Home snapshot={snapshot} run={run} openSettings={openSettings} />
             : current === 'ai' ? <Providers snapshot={snapshot} run={run} />
-            : current === 'basic' ? <BasicSettings snapshot={snapshot} run={run} />
-            : <WritingSettings snapshot={snapshot} run={run} />}
+            : <BasicSettings snapshot={snapshot} run={run} />}
         </div>
       </div>
     </main>

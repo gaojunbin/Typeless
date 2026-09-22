@@ -49,12 +49,31 @@ export interface Permissions {
   shortcutPresses: number;
 }
 
+export type UpdateStatus = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'downloaded' | 'error';
+export type UpdateError = 'network' | 'invalid_response' | 'no_asset' | 'checksum' | 'write_failed';
+
+/** Release check against GitHub. The renderer only renders it; main owns every transition. */
+export interface UpdateState {
+  status: UpdateStatus;
+  currentVersion: string;
+  latestVersion?: string;
+  releaseUrl?: string;
+  assetName?: string;
+  /** Download progress from 0 to 1 while `downloading`. */
+  progress?: number;
+  /** Absolute path of the downloaded installer once `downloaded`. */
+  filePath?: string;
+  error?: UpdateError;
+  checkedAt?: number;
+}
+
 export interface AppSnapshot {
   version: string;
   platform: Platform;
   settings: AppSettings;
   session: DictationSession;
   permissions: Permissions;
+  update: UpdateState;
 }
 
 export type SettingsPatch = {
@@ -75,7 +94,11 @@ export type AppAction =
   | { type: 'window.hide' }
   | { type: 'app.quit' }
   | { type: 'app.relaunch' }
-  | { type: 'diagnostics.copy' };
+  | { type: 'diagnostics.copy' }
+  | { type: 'update.check' }
+  | { type: 'update.download' }
+  | { type: 'update.open' }
+  | { type: 'update.openRelease' };
 
 export interface ActionResult {
   ok: boolean;

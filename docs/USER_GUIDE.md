@@ -4,15 +4,15 @@ This guide describes the reduced dictation interface. UI labels are shown in Chi
 
 ## Open the application
 
-The 2.1.1 package output locations are [Typeless-2.1.1-arm64.dmg](../release/Typeless-2.1.1-arm64.dmg) for Apple silicon macOS and [Typeless-2.1.1-win.zip](../release/Typeless-2.1.1-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact.
+The 2.2.0 package output locations are [Typeless-2.2.0-arm64.dmg](../release/Typeless-2.2.0-arm64.dmg) for Apple silicon macOS and [Typeless-2.2.0-win.zip](../release/Typeless-2.2.0-win.zip) for Windows x64. Consult Validation for availability and verification. On macOS, quit any existing instance, drag `Typeless.app` into Applications, eject the disk image, and launch the installed app. The local build is ad-hoc signed, not Developer ID signed or notarized. On Windows, extract the entire portable archive and run `Typeless.exe` with its companion files intact.
 
 From source, run `npm ci`, `npm run build`, then `npm start` in the checkout. The first run contains no API keys.
 
 ## The main window
 
-The window is a two-column shell. The sidebar lists four destinations in order, **首页**, **AI 配置**, **基本设置** and **表达风格**, and ends with a card showing the effective dictation shortcut and its status; clicking that card opens **基本设置**. Arrow keys move between destinations. The content column scrolls on its own and shows the application version at its lower right.
+The window is a two-column shell on a white background. The sidebar shows the application mark, the same seven-bar waveform as the Dock icon, and three destinations in order: **首页**, **AI 配置** and **基本设置**. Arrow keys move between them. While a newer release is available, a small **有新版本** pill at the bottom of the sidebar opens **基本设置**. The content column scrolls on its own; the version lives in **基本设置 → 关于**.
 
-**首页** carries the **说话，不打字** hero and the dictation card: the **开始听写** button, the shortcut keycaps, the recording waveform and elapsed time, the recovery alert and the current result. A shortcut card below it lists the primary and fallback bindings. **配置概览** holds three status cards, **语音识别**, **文字润色** and **快捷键与权限**, each opening the matching destination. A side rail summarizes the speech protocol, polishing level, shortcut status and microphone permission, and offers a **三步开始** quick start.
+**首页** carries the **说话，不打字** title and the dictation card: the **开始听写** button, the shortcut keycaps, the recording waveform and elapsed time, the recovery alert and the current result. Below it a single status list has three rows, **语音识别**, **文字润色** and **快捷键**, each with its current detail and a status badge; clicking a row opens the matching destination. The shortcut and its status appear nowhere else on the page, and the getting-started steps live only in the setup guide.
 
 A new installation reaches this shell only after the setup guide below. Afterwards, with no speech key saved, the application opens on **AI 配置**; otherwise it opens on **首页**.
 
@@ -55,7 +55,7 @@ The OpenAI-compatible speech adapter uses multipart `/audio/transcriptions`; MiM
 
 ## Choose a writing style
 
-Open **表达风格** and select one level:
+Open **AI 配置**. The **文字润色** form starts with **润色程度**; select one level:
 
 - **不润色:** use the original transcript; no text-model request.
 - **轻度润色:** remove clear fillers and accidental repetition with minimal rephrasing.
@@ -67,11 +67,13 @@ Use **个人表达说明** for optional instructions such as preferred terminolo
 
 ## Basic settings and permissions
 
-**基本设置** groups its rows under **快捷键** (primary and fallback shortcut), **音频** (microphone and **录音提示音**), **通用** (**完成后自动粘贴** and **登录系统时启动**) and **系统权限**. Each row keeps its label on the left and its control on the right. Selectors and switches save immediately. The fallback shortcut offers three readable presets and saves on selection; an existing custom binding remains available. There is no global Save action. Startup behavior applies to packaged applications.
+**基本设置** groups its rows under **快捷键** (primary and fallback shortcut), **音频** (microphone and **录音提示音**), **通用** (**完成后自动粘贴** and **登录系统时启动**), **系统权限** and **关于**. Each row keeps its label on the left and its control on the right. Selectors and switches save immediately. The fallback shortcut offers three readable presets and saves on selection; an existing custom binding remains available. There is no global Save action. Startup behavior applies to packaged applications.
 
 Microphone names may be unavailable before permission is granted; **系统默认** uses the default device. Device choices refresh when devices change. A waveform indicates audio level, not a live transcript. Recording sounds indicate recording transitions; visible state remains authoritative if sound playback is suppressed.
 
 **系统权限** repeats the guide's checks as rows. **麦克风** shows **已授权** or **待授权**, with **授权** to request it and **打开系统设置** once the system has refused it. **辅助功能** on macOS shows **已授权** or **待授权**; **系统输入助手** on Windows shows **已就绪** or **不可用** instead, because nothing is granted there. Both offer **打开系统设置**. macOS adds an **输入监控** row with three states: **已授权** when Input Monitoring itself is granted, **辅助功能已覆盖** when only Accessibility is granted, and **未授权** otherwise, where **打开系统设置** opens the Input Monitoring pane. The row **设置向导** has **重新运行设置向导** and returns you to the first-launch guide without touching any other setting. The last row, **诊断信息**, has **复制诊断信息**: it puts the application version, the operating-system version, the packaged executable path with the macOS bundle hash, the non-secret settings, the current permissions and the last fifty helper status transitions on the clipboard, and its label reads **已复制** for two seconds. That report contains no API keys and no transcripts, so it can go straight into a bug report.
+
+**关于** holds the **版本** row. Its badge reads **未检查**, **正在检查…**, **已是最新**, **有新版本 x.y.z**, **下载中 n%**, **已下载** or **检查失败**, and its button follows: **检查更新** asks GitHub for the latest release, **下载更新** saves that release's installer for this platform into your Downloads folder and verifies the published digest, **打开安装包** opens the downloaded file, and **重试** repeats a failed check. **更新说明** opens the release page. Packaged applications also check automatically 15 seconds after launch and every six hours; a newer release then shows **有新版本** in the sidebar. Installing remains a manual step: drag the new application into Applications, reopen it and grant the permissions again, because each ad-hoc signed build has its own identity.
 
 The **主要快捷键** row reports its own health beside the keycaps. **已就绪** and **已关闭** need nothing. **已授权但监听未生效** adds a **重新打开 Typeless** button, because an authorized helper cannot repair a failing event tap in place. **请授权辅助功能（升级后需移除旧条目重新添加）**, **监听未生效，请检查权限** and **助手正在重新连接** point back to the permission rows; the first appears while nothing is granted yet and reminds you that an upgraded build needs its own entry. On macOS, Fn listening needs Accessibility or Input Monitoring and automatic paste needs Accessibility. Development Electron and the installed app can hold different permission identities. The recording button and automatic copying do not require the paste permission.
 
@@ -119,7 +121,8 @@ Every finished result replaces the system clipboard. The app does not restore it
 | Shortcut press does nothing during setup | Expected: while the setup guide is open, presses are only counted to confirm the shortcut arrives. |
 | Want to check permissions again | Run **基本设置 → 系统权限 → 重新运行设置向导**. |
 | Right Alt conflicts with typing | Choose a suitable fallback for your keyboard layout. |
-| Original text appears instead of polished text | Read the warning under the result and check **表达风格** and the text connection. |
+| Original text appears instead of polished text | Read the warning under the result and check **AI 配置 → 文字润色** (level and connection). |
+| **检查失败** in **关于** | Read the line under the row: no connection to GitHub, an unreadable response, no installer for this platform, a digest mismatch or an unwritable Downloads folder. **重试** repeats the check; **更新说明** opens the release page in the browser. |
 | Text is absent from the destination | Use the retained clipboard manually; check automatic paste and native permissions. |
 | Retry audio expired | Record again; audio is not restored from disk. |
 | Browser shows preview | Launch the desktop application; the preview has no native transcription bridge. |

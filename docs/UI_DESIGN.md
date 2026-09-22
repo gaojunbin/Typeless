@@ -37,7 +37,7 @@ The main window becomes a two-column shell.
 └──────────────┴────────────────────────────────────────────────┘
 ```
 
-Destinations (in this order): `home` 首页, `ai` AI 配置, `basic` 基本设置, `style` 表达风格. All four render inside the content column; there is no modal settings sheet (official Typeless uses one; this project keeps settings as pages because the whole product is configuration). The `Page` type lives in `src/renderer/settings/types.ts`.
+Destinations (in this order, since section 13): `home` 首页, `ai` AI 配置, `basic` 基本设置; 表达风格 lives inside AI 配置. All three render inside the content column; there is no modal settings sheet (official Typeless uses one; this project keeps settings as pages because the whole product is configuration). The `Page` type lives in `src/renderer/settings/types.ts`.
 
 Initial page: the first-run setup guide (section 12) while `settings.general.setupCompleted` is `false`; afterwards `ai` when no speech key is saved, else `home`. Recovery links (`recoverySettings`) and the unconfigured primary action navigate to `ai` or `basic` exactly as today. Because the recovery alert lives on 首页, the shell switches to `home` whenever a dictation session newly enters the `error` state, so clicking the recovery capsule (which only shows the window) always lands on the alert.
 
@@ -179,6 +179,8 @@ Inline alert (`role="alert"` inside pages): `Card tone="muted"` with `TriangleAl
 
 ### 7.1 首页 (Home) — `src/renderer/Home.tsx` + `DictationPanel.tsx`
 
+Superseded by section 13.2 for everything except the dictation card (item 3), the recovery alert (item 4) and the result card (item 5), which are unchanged.
+
 Reference: the current official v2.0.0 Home (`.local/research-ui/onboarding-changelog/png/setup-09-across-apps.png`): a very large hero, a white shortcut card with outlined keycaps, a "Popular use cases" three-column card grid, and a narrow right rail holding a gray stats card and pale gradient link cards, on a cool dotted backdrop.
 
 Backdrop: the Home tabpanel carries class `page-home`. For this page only, the content column background is `--home-bg` with a dot grid `radial-gradient(circle, var(--home-dot) 1px, transparent 1.2px) 0 0 / 14px 14px` and a soft glow `radial-gradient(520px 320px at 88% -10%, var(--home-glow), transparent 70%)`. Cards on Home are pure white `#ffffff` with a hairline `--line` border and radius `--radius-xl`. Other pages keep `--bg` and no pattern.
@@ -227,6 +229,8 @@ Switch rows: control is `<input type="checkbox" role="switch" aria-label="{label
 
 ### 7.4 表达风格 — `Preferences.tsx` (`WritingPage`)
 
+Superseded by section 13.4: the two groups now live inside the 文字润色 form of AI 配置 and the page no longer exists.
+
 Header: "表达风格", subtitle "决定识别结果如何整理。个人表达说明会随每次润色一起发送。" Groups:
 
 1. `Sparkles` 润色程度: stacked row with `Segmented` (`ariaLabel="润色程度"`) 不润色 / 轻度润色 / 强力润色, hint line from `writingLevels`, `SaveStatus`.
@@ -271,11 +275,11 @@ Cross-file contract: `main.tsx` renders `<Sidebar page onNavigate snapshot />` a
 
 ## 10. Accessibility and test hooks that must survive
 
-- `nav[aria-label="主导航"]` > `role=tablist` with four `role=tab` (`首页`, `AI 配置`, `基本设置`, `表达风格`), `aria-selected`; one `role=tabpanel` rendered.
+- `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (`首页`, `AI 配置`, `基本设置`) since section 13, `aria-selected`; one `role=tabpanel` rendered.
 - Home: `button` "配置语音" / "开始听写" / "结束听写"; `.dictation-panel [role="alert"]` with buttons "基本设置" / "AI 配置" / "重试"; `role=group[name="听写结果视图"]` with buttons "整理后"/"原文" carrying `aria-pressed`; `.result-text`; buttons "复制本次听写" then "已复制".
 - AI 配置: `form.provider-panel` with `h2` "语音识别"/"文字润色"; labels 语音服务地址, 语音模型, 语音 API 密钥, 润色服务地址, 润色模型, 润色 API 密钥; button "保存"; no button named "保存设置"; `role=alert` with 保存失败 text on failure.
 - 基本设置: `switch` named 完成后自动粘贴, 录音提示音, 登录系统时启动; selects labelled 主要快捷键 (value `Disabled` option) and 备用快捷键; `.save-status`.
-- 表达风格: buttons 不润色/轻度润色/强力润色 with `aria-pressed`; textarea labelled 个人表达说明; `.writing-inactive` containing "开启润色后生效，说明会保留。".
+- 文字润色 form on AI 配置 (since section 13): buttons 不润色/轻度润色/强力润色 with `aria-pressed`; textarea labelled 个人表达说明; `.writing-inactive` containing "开启润色后生效，说明会保留。".
 - Overlay: `.voice-pill .wave`, `.voice-pill button` (2 while recording, 1 while processing), button "取消听写" in both states, "完成听写" while recording, `.voice-loading i` carrying a CSS animation while processing, `button` "查看听写问题" in recovery.
 
 ## 11. Acceptance
@@ -409,3 +413,100 @@ Agent O imports primitives from `ui.tsx` but does not edit it, `base.css` or `sh
 2. `npm run test:desktop` launches a fresh profile, walks 欢迎 → 权限 (skip link) → 麦克风 (fake device lights the meter and `.mic-detected` appears) → 快捷键 → 完成 → "去连接 AI 服务", asserts the shell opens on AI 配置 with `general.setupCompleted === true`, and the relaunch stage lands directly in the shell.
 3. The guide is usable at 880×600 without horizontal scrolling on every step.
 4. Existing shell behaviour and hooks in section 10 are unchanged once setup is complete.
+
+## 13. Simplification pass (2.2.0)
+
+Requested on 2026-09-22 after the setup guide shipped: pure white pages, fewer repeated status lines, one brand mark, three destinations, and an in-app release check. Behaviour stays as it is; this section changes only presentation, navigation and adds the update check. Where it contradicts sections 2, 5, 7 or 12, this section wins.
+
+### 13.1 Tokens and shared rules (lead, done before fan-out)
+
+- `--bg` is `#ffffff`; the sidebar keeps `--bg-sidebar #f6f6f6`. The Home backdrop (dot grid, glow) and the `--home-*`, `--gradient-card-*` and `--mint` tokens are gone. `--setup-bg` and `--setup-art` are flat `#f6f6f6`; `--setup-feature-card` is `#ffffff`.
+- Colour is reserved for status: `StatusBadge` keeps its soft ok/warn/accent tints, the microphone meter stays `--meter-active`, links keep `--accent-text`. Switches (`input[role=switch]:checked` and the guide's `.privacy-switch[data-on="true"]`) are `--ink`.
+- Cards on white pages use `border: 1px solid var(--line-strong)` so they read on the white background; no card carries a gradient.
+- `BrandMark({ size, className })` in `ui.tsx` draws the Dock icon's seven rounded bars (heights 3/6/9/12/9/6/3 on a 24 grid, width 2, pitch 3, `rx=1`, `fill="currentColor"`). It replaces every `AudioWaveform` use.
+- Icons: 首页 `House`, AI 配置 `Sparkle` (single four-point star), 基本设置 `Settings`, 语音识别 `Mic`, 文字润色 `PenLine`, 快捷键 `Keyboard`, 关于 `Info`, update `CircleArrowUp`. `Sparkles` is not used anywhere.
+- `pages` has three entries: `home` 首页, `ai` AI 配置, `basic` 基本设置. `SettingsTab` is `'ai' | 'basic'`.
+- `AppSnapshot.update: UpdateState` and the actions `update.check`, `update.download`, `update.open`, `update.openRelease` exist in `contracts.ts`; `Controller.setUpdate()` publishes transitions.
+
+### 13.2 Shell and Home (Agent A)
+
+Sidebar: brand row = `BrandMark` 22px + "Typeless" wordmark (unchanged type). Three nav items. The footer shortcut card is removed. When `snapshot.update.status === 'available'` the footer shows `button.sidebar-update` (`margin-top:auto`, white card, `--line-strong` border, radius `--radius-md`, padding 10px 12px, 13px): `CircleArrowUp` 16px + "有新版本 {latestVersion}"; it navigates to `basic`. Nothing else sits in the footer.
+
+`main.tsx`: routes `home | ai | basic`; `WritingSettings` is no longer imported or rendered; everything else (setup guide gate, initial page rule, error → home, toast) unchanged.
+
+Home (`Home.tsx`, `styles/home.css` rewritten): single column, `.page-home` max-width 680px, no backdrop, no right rail.
+
+1. `PageHeader` title "说话，不打字" (`--fs-title`), no subtitle.
+2. `DictationPanel` unchanged (its keycaps and one instruction line are the only shortcut guidance on the page).
+3. `.status-list`: one white card (`--line-strong` border, radius `--radius-lg`, padding 4px 0) holding three `button.status-row` (full width, text-align left, `grid-template-columns: 20px minmax(0,1fr) auto 16px`, gap 12px, padding 14px 16px, hairline `--line` between rows, hover `--bg-hover`): icon 20px `--text-secondary`; text block = label `--fs-heading`/600 + 13px `--text-secondary` detail; `StatusBadge`; `ChevronRight` 16px `--text-tertiary`.
+   - 语音识别 (`Mic`): detail "{小米 MiMo|OpenAI 兼容} · {model}" or "待配置"; badge 已连接 (ok) / 待配置 (warn); → `ai`.
+   - 文字润色 (`PenLine`): detail "{不润色|轻度润色|强力润色}{ · model when connected}" or "未配置润色模型"; badge 已连接 (ok) / 未配置 (warn) / 已关闭 (muted, when 不润色); → `ai`.
+   - 快捷键 (`Keyboard`): detail = `KeyChips` (chip size) of the effective shortcut, or "已关闭"; badge 已就绪 (ok) / 不可用 (warn) / 已关闭 (muted); → `basic`.
+4. Nothing else: no shortcut card, no 配置概览, no rail, no 三步开始, no privacy line, no version footer (the version moves to 基本设置 → 关于).
+
+### 13.3 Setup guide (Agent B)
+
+Presentation only: welcome backdrop and art panel are flat `--setup-bg` / `--setup-art` without radial glows; feature cards are white with a `--line-strong` border; the privacy hero switch turns `--ink`; the welcome mark is `BrandMark` 32px. The 完成 step adds, below the checklist and only when no speech key is saved, a `.next-steps` card (white, `--line-strong` border, radius `--radius-lg`, padding 16px 20px) titled "接下来" (`--fs-heading`/600) with three 13px `--text-secondary` lines: "1. 连接语音识别服务", "2. 选择润色程度", "3. 在任何应用按 {Fn|Right Alt|fallback chord label} 开口". Copy, states, hooks and flow of section 12 are otherwise unchanged.
+
+### 13.4 AI 配置 (Agent C)
+
+Subtitle: "语音识别与文字润色分别连接你自己的模型服务，并在这里设置润色方式；密钥只保存在本机。" The 语音识别 form is unchanged. The 文字润色 form (`form.provider-panel`, `h2` "文字润色", icon `PenLine`) now contains, in order:
+
+1. 润色程度: stacked row, `Segmented ariaLabel="润色程度"` 不润色 / 轻度润色 / 强力润色 (buttons `type="button"`, `aria-pressed`), hint from `writingLevels`, `SaveStatus`; autosaves through `useSettingDraft` exactly as the old 表达风格 page did.
+2. `.provider-divider` (hairline `--line`, margin 4px 0).
+3. The existing connection rows (润色服务地址, 润色模型, 润色 API 密钥) and the action row with 保存 / 删除密钥 and the error line.
+4. `.provider-divider`.
+5. 个人表达说明: stacked row, textarea `id="writing-instructions"` with `<label htmlFor>`, placeholder and hints as before ("离开输入框自动保存，也可按 ⌘ / Ctrl + Enter。" or "开启润色后生效，说明会保留。"); the row wrapper carries `.writing-inactive` while 不润色 is selected. Blur and ⌘/Ctrl+Enter commit; Enter inside the textarea never submits the form.
+
+The code moves from `Preferences.tsx` into `settings/Writing.tsx` (`WritingLevelRow`, `WritingInstructionsRow`, both taking `SettingsSectionProps`); `Providers.tsx` renders them. The footer caption stays.
+
+### 13.5 基本设置 (Agent D)
+
+`WritingSettings` and its imports leave `Preferences.tsx`. A last group `Info` 关于 gains one row 版本 (label "版本", description "Typeless {version}", `htmlFor` none). Its control is a `StatusBadge` plus one button, by `snapshot.update.status`:
+
+| status | badge | button |
+| --- | --- | --- |
+| `idle` | muted "未检查" | "检查更新" → `update.check` |
+| `checking` | muted "正在检查…" | disabled "检查中…" |
+| `none` | ok "已是最新" | "检查更新" |
+| `available` | accent "有新版本 {latestVersion}" | `.primary.small` "下载更新" → `update.download` |
+| `downloading` | muted "下载中 {round(progress×100)}%" | disabled "下载中…" |
+| `downloaded` | ok "已下载" | "打开安装包" → `update.open` |
+| `error` | warn "检查失败" | "重试" → `update.check` |
+
+Under the control: when `releaseUrl` is present a `.text-button` "更新说明" → `update.openRelease`; when `downloaded`, a 13px `--text-secondary` line "打开安装包后，把 Typeless 拖入应用程序文件夹并重新打开；升级后需重新授权辅助功能。" (Windows: "解压后运行 Typeless.exe，覆盖旧文件即可。"); when `error`, the mapped message: `network` "无法连接 GitHub，请稍后重试。", `invalid_response` "GitHub 返回了无法识别的内容。", `no_asset` "此版本没有适用于当前系统的安装包。", `checksum` "下载文件校验失败，请重新下载。", `write_failed` "无法写入下载目录。". Preview bridge (`bridge.ts`): `update` is `{ status: 'none', currentVersion, checkedAt }` and the four `update.*` actions return ok without changing state.
+
+### 13.6 Release check (Agent E)
+
+- `src/core/update.ts` (pure, unit-tested in `tests/update.test.ts`): `compareVersions(a, b)` (strip a leading `v`, compare dot-separated integers, missing parts are 0, any prerelease suffix sorts below the plain version), `pickAsset(assets, platform, arch)` (darwin+arm64 → name ending `-arm64.dmg`; darwin+x64 → `-x64.dmg`; win32 → `-win.zip`; otherwise undefined), `parseLatestRelease(json)` → `{ version, releaseUrl, assets: { name, url, size, digest? }[] }` or throws `invalid_response` (requires `tag_name`, `html_url` on `https://github.com/`, array `assets` with `browser_download_url` on https).
+- `electron/update-checker.ts`: `class UpdateChecker` constructed with `{ currentVersion, platform, arch, downloadsDir, fetcher = fetch, onChange(state) }`, state starts `{ status: 'idle', currentVersion }`. `check(url)`: `checking` → fetch with `Accept: application/vnd.github+json`, `User-Agent: Typeless/{version}`, 10 s timeout, 1 MB cap → `none` (equal or older) or `available` (with `latestVersion`, `releaseUrl`, `assetName`) or `error: no_asset` when newer but no asset, `error: network | invalid_response` otherwise; sets `checkedAt`. `download()`: only from `available`; `downloading` with `progress`; GET the asset URL (https only, `redirect: 'follow'`, 500 MB cap), stream to `<downloadsDir>/<assetName>.part` while hashing SHA-256, then verify against `digest` (`sha256:<hex>`) when present, rename to `<assetName>` → `downloaded` with `filePath`; on failure delete the partial file → `error: checksum | network | write_failed`. `open()`: `shell.openPath(filePath)` when `downloaded`. `openRelease()`: `shell.openExternal(releaseUrl)` only when its host is `github.com`. `onChange` fires on every transition, throttled to 250 ms while downloading; `cancel()` aborts an in-flight download at quit.
+- `electron/main.ts`: `const updateUrl = process.env.TYPELESS_UPDATE_URL || 'https://api.github.com/repos/gaojunbin/Typeless/releases/latest'`; downloads directory = `join(dataRoot, 'downloads')` when `TYPELESS_DATA_DIR` is set, else `app.getPath('downloads')`. Wire `onChange` → `controller.setUpdate`. Automatic check 15 s after ready and every 6 h, only when `app.isPackaged || process.env.TYPELESS_UPDATE_URL`, and never when the value is `off`. The four actions dispatch through new `ControllerHost` methods (`checkUpdate`, `downloadUpdate`, `openUpdate`, `openReleasePage`); `update.check` is always allowed manually (it ignores `off`).
+- `tests/update-checker.test.ts` with an injected fetcher and a temp directory under `.local/tests/`: newer release → `available`; same version → `none`; newer without a matching asset → `no_asset`; download success writes the file and reports `downloaded`; digest mismatch deletes the partial file and reports `checksum`.
+
+### 13.7 Test hooks (replaces the affected lines of section 10)
+
+- `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (首页, AI 配置, 基本设置). No footer shortcut card; `button.sidebar-update` only while an update is available.
+- Home: `.status-list` with three `button.status-row` named by their labels (语音识别, 文字润色, 快捷键); `.dictation-panel` hooks unchanged; no `.home-hero`, `.shortcut-card`, `.usecase-grid`, `.home-rail`, `.quickstart-card` or `.home-version`.
+- AI 配置: `form.provider-panel` with `h2` 文字润色 contains buttons 不润色/轻度润色/强力润色 with `aria-pressed`, textarea labelled 个人表达说明 and `.writing-inactive` containing "开启润色后生效，说明会保留。"; the provider labels and 保存 button are unchanged.
+- 基本设置: group 关于 with the 版本 row; buttons "检查更新" / "下载更新" / "打开安装包" / "重试" and badge texts as in 13.5; "更新说明" text button.
+- Setup guide: unchanged hooks plus `.next-steps` on 完成 when no speech key is saved.
+
+### 13.8 Ownership
+
+| Owner | Files (exclusive) |
+| --- | --- |
+| Lead (done) | `src/shared/contracts.ts`, `src/renderer/settings/types.ts`, `src/renderer/ui.tsx`, `src/renderer/styles/tokens.css`, `src/renderer/styles/base.css`, `docs/UI_DESIGN.md`, `CLAUDE.md`, minimal compile fixes in `Sidebar.tsx`, `Home.tsx`, `main.tsx`, `controller.ts`, `bridge.ts` |
+| Agent A shell + home | `src/renderer/main.tsx`, `src/renderer/Sidebar.tsx`, `src/renderer/Home.tsx`, `src/renderer/DictationPanel.tsx`, `src/renderer/styles/shell.css`, `src/renderer/styles/home.css` |
+| Agent B setup guide | `src/renderer/onboarding/**`, `src/renderer/styles/onboarding.css` |
+| Agent C AI 配置 | `src/renderer/settings/Providers.tsx`, `src/renderer/settings/Writing.tsx` (new), `src/renderer/styles/providers.css` |
+| Agent D 基本设置 | `src/renderer/settings/Preferences.tsx`, `src/renderer/styles/preferences.css`, `src/renderer/bridge.ts` |
+| Agent E release check | `src/core/update.ts` (new), `electron/update-checker.ts` (new), `electron/main.ts`, `electron/controller.ts`, `tests/update.test.ts` (new), `tests/update-checker.test.ts` (new), `tests/core-session.test.ts` (host stub only) |
+| Agent F verification (after A–E) | `tests/desktop.e2e.mjs`, `tests/dictation-delivery.e2e.mjs`, `docs/screenshots/*`, `docs/VALIDATION.md` |
+| Agent G docs (after A–E) | `README.md`, `docs/USER_GUIDE.md`, `docs/PROPOSAL.md` |
+
+### 13.9 Acceptance
+
+1. `npm run typecheck`, `npm test`, `npm run build`, `native/bin/typeless-native --self-test` pass; unit tests grow by the update tests.
+2. `npm run test:desktop` passes with three tabs, the 润色 controls under AI 配置, the Home status list, and an update stage driven by `TYPELESS_UPDATE_URL` pointing at the harness mock server (a fake `99.0.0` release whose asset is a small file served by the same server): 检查更新 → 有新版本 99.0.0 → 下载更新 → 已下载, and the file exists under the profile's `downloads/`. `npm run test:delivery` passes.
+3. Every page and guide step renders at 880×600 without horizontal scrolling; no page shows a coloured backdrop or gradient card.
+4. Screenshots of 首页, AI 配置, 基本设置 and the guide are refreshed in `docs/screenshots/`.

@@ -10,6 +10,7 @@ import { Controller } from './controller';
 import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
 import { ClipboardDelivery } from './clipboard-delivery';
+import { UpdateChecker } from './update-checker';
 import { shortcutPermissions } from './shortcut-status';
 
 const dataRoot = resolve(process.env.TYPELESS_DATA_DIR || (app.isPackaged ? app.getPath('userData') : join(app.getAppPath(), '.local', 'app')));
@@ -31,6 +32,10 @@ let shortcutHealthTimer: ReturnType<typeof setInterval> | undefined;
 let refreshingPermissions = false;
 let shortcutPresses = 0;
 let micTestUntil = 0;
+const defaultUpdateUrl = 'https://api.github.com/repos/gaojunbin/Typeless/releases/latest';
+const updateUrl = process.env.TYPELESS_UPDATE_URL || defaultUpdateUrl;
+let updateChecker: UpdateChecker;
+let updateTimer: ReturnType<typeof setInterval> | undefined;
 interface StatusTransition {
   at: string;
   accessibility: boolean;
@@ -69,7 +74,7 @@ function trusted(contents: Electron.WebContents, url: string) {
 }
 function showMain() { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } }
 function windowOptions(): Electron.BrowserWindowConstructorOptions {
-  return { backgroundColor: '#fdfdfd', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false, spellcheck: false } };
+  return { backgroundColor: '#ffffff', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false, spellcheck: false } };
 }
 function secureWindow(window: BrowserWindow) {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -227,7 +232,18 @@ else {
       permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },
       copy: (text, signal) => delivery.copy(text, signal), show: showMain, hide: () => mainWindow.hide(),
       quit: () => app.quit(), relaunch, copyDiagnostics, settingsChanged: changes => configureSettings(changes.login, changes.shortcut),
+      // A manual check always reaches GitHub, even when the automatic one is switched off.
+      checkUpdate: async () => { await updateChecker.check(updateUrl === 'off' ? defaultUpdateUrl : updateUrl); },
+      downloadUpdate: async () => { await updateChecker.download(); },
+      openUpdate: () => updateChecker.open(), openReleasePage: () => updateChecker.openRelease(),
     }, app.getVersion());
+    updateChecker = new UpdateChecker({
+      currentVersion: app.getVersion(), platform: process.platform, arch: process.arch,
+      // Isolated profiles keep their downloads next to their data; real installs use the system Downloads folder.
+      downloadsDir: process.env.TYPELESS_DATA_DIR ? join(dataRoot, 'downloads') : app.getPath('downloads'),
+      onChange: state => { if (!quitting && controller) controller.setUpdate(state); },
+      openPath: path => shell.openPath(path), openExternal: url => shell.openExternal(url),
+    });
     const checkSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) => {
       if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !trusted(event.sender, event.senderFrame.url)) throw new Error('Untrusted IPC sender.');
     };
@@ -259,6 +275,11 @@ else {
     showMain();
     try { await native.start(); nativeAvailable = true; } catch { nativeAvailable = false; }
     await configureSettings();
+    if (updateUrl !== 'off' && (app.isPackaged || process.env.TYPELESS_UPDATE_URL)) {
+      setTimeout(() => { void updateChecker.check(updateUrl); }, 15_000).unref();
+      updateTimer = setInterval(() => { void updateChecker.check(updateUrl); }, 6 * 60 * 60 * 1000);
+      updateTimer.unref();
+    }
     const cancelForSystem = () => { if (controller.sessions.session.id) controller.sessions.cancel(); voiceOverlay.hide(); };
     powerMonitor.on('lock-screen', cancelForSystem);
     powerMonitor.on('suspend', cancelForSystem);
@@ -271,5 +292,5 @@ else {
 app.on('activate', () => { showMain(); void refreshShortcutHealth(); });
 app.on('window-all-closed', () => { /* Keep the tray and hidden capture renderer alive. */ });
 app.on('before-quit', () => {
-  quitting = true; clearInterval(shortcutHealthTimer); voiceOverlay?.hide(); controller?.sessions.cancel(); native.stop(); globalShortcut.unregisterAll();
+  quitting = true; clearInterval(shortcutHealthTimer); clearInterval(updateTimer); updateChecker?.cancel(); voiceOverlay?.hide(); controller?.sessions.cancel(); native.stop(); globalShortcut.unregisterAll();
 });

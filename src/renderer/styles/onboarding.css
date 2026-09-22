@@ -1,15 +1,12 @@
-/* First-run setup guide. See docs/UI_DESIGN.md section 12.
+/* First-run setup guide. See docs/UI_DESIGN.md sections 12 and 13.3.
    Tokens live in tokens.css and primitives in base.css; this sheet only targets guide class names. */
 
 .onboarding { display: flex; flex-direction: column; height: 100vh; min-height: 0; background: var(--bg); }
 
-/* Welcome screen: no progress header, one centred card on the tinted backdrop. */
+/* Welcome screen: no progress header, one centred card on the flat backdrop. */
 .onboarding-welcome {
   align-items: center; justify-content: center; padding: 24px;
-  background:
-    radial-gradient(560px 380px at 14% 8%, var(--home-glow), transparent 70%),
-    radial-gradient(520px 360px at 88% 94%, rgba(196, 212, 255, .55), transparent 70%),
-    var(--setup-bg);
+  background: var(--setup-bg);
   -webkit-app-region: drag;
 }
 .setup-welcome-card {
@@ -44,13 +41,7 @@ body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
 .setup-footer-left { display: flex; align-items: center; gap: 12px; min-height: 40px; }
 .setup-footer button.primary { height: 40px; padding: 0 24px; }
 
-.setup-art {
-  display: flex; align-items: center; justify-content: center; min-width: 0; padding: 32px;
-  background:
-    radial-gradient(420px 300px at 22% 14%, var(--home-glow), transparent 70%),
-    radial-gradient(380px 280px at 84% 88%, rgba(196, 212, 255, .55), transparent 70%),
-    var(--setup-art);
-}
+.setup-art { display: flex; align-items: center; justify-content: center; min-width: 0; padding: 32px; background: var(--setup-art); }
 .setup-hero { display: flex; align-items: center; justify-content: center; max-width: 100%; border-radius: var(--radius-xl); background: #ffffff; box-shadow: var(--shadow-md); }
 .setup-hero-meter { width: 320px; height: 200px; }
 
@@ -65,7 +56,7 @@ body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
   content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
   background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform var(--dur) var(--ease);
 }
-.privacy-switch[data-on="true"] { background: var(--accent); }
+.privacy-switch[data-on="true"] { background: var(--ink); }
 .privacy-switch[data-on="true"]::before { transform: translateX(12px); }
 .privacy-caption { margin-top: 14px; color: var(--text-tertiary); font-size: var(--fs-caption); }
 
@@ -113,7 +104,7 @@ body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
 .setup-keyrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 16px 20px; border-radius: var(--radius-lg); background: var(--setup-card); }
 .setup-keyrow-title { font-size: var(--fs-heading); font-weight: 600; }
 .setup-feature-cards { display: flex; flex-direction: column; gap: 16px; width: 260px; max-width: 100%; }
-.setup-feature-card { display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: var(--radius-xl); background: var(--setup-feature-card); }
+.setup-feature-card { display: flex; flex-direction: column; gap: 14px; padding: 24px; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--setup-feature-card); }
 .setup-feature-title { font-size: var(--fs-card-title); font-weight: 600; }
 
 /* 完成 */
@@ -124,6 +115,9 @@ body[data-platform="darwin"] .setup-progress nav { padding-top: 8px; }
 .setup-check-row .check-value { color: var(--text-secondary); }
 .setup-check-row .check-ok { color: var(--ok); }
 .setup-check-row .check-warn { color: var(--warn); }
+.next-steps { margin-top: 16px; padding: 16px 20px; border-radius: var(--radius-lg); background: var(--setup-card); }
+.next-steps-title { display: block; font-size: var(--fs-heading); font-weight: 600; }
+.next-steps p { margin-top: 8px; color: var(--text-secondary); font-size: 13px; }
 
 /* The split holds down to the 880px minimum window; only the gutters tighten. */
 @media (max-width: 900px) {

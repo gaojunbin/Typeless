@@ -29,3 +29,15 @@
 @media (max-width: 720px) {
   .option-cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Writing rows embedded in the 文字润色 form. See docs/UI_DESIGN.md section 13.4. */
+.provider-divider { border-top: 1px solid var(--line); margin: 4px 0; }
+.setting-row.writing-level .row-control { align-items: flex-start; }
+.setting-row .writing-hint { max-width: 620px; color: var(--text-secondary); }
+.setting-row.writing-level .writing-hint { margin-top: 12px; }
+.setting-row.writing-instructions textarea { max-width: 640px; }
+.setting-row .writing-status { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.setting-row .writing-status .save-status { margin-top: 0; }
+.setting-row.writing-inactive .row-label,
+.setting-row.writing-inactive .writing-hint,
+.setting-row.writing-inactive textarea { color: var(--text-secondary); }

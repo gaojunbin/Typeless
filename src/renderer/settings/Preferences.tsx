@@ -1,8 +1,8 @@
-import { useEffect, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { Keyboard, Laptop, Mic, PenLine, ShieldCheck, Sparkles } from 'lucide-react';
-import { KeyChips, PageHeader, SectionGroup, Segmented, SettingRow, StatusBadge } from '../ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Keyboard, Laptop, Mic, ShieldCheck } from 'lucide-react';
+import { KeyChips, PageHeader, SectionGroup, SettingRow, StatusBadge } from '../ui';
 import { shortcutLabel } from '../shortcutPresentation';
-import { writingLevel, writingLevels, type WritingLevel } from '../writingPresentation';
+import { AboutGroup } from './About';
 import { SaveStatus, useSettingDraft } from './Autosave';
 import type { SettingsSectionProps } from './types';
 import { inputMonitoringStatus, primaryShortcutStatus } from '../onboarding/permissionStatus';
@@ -103,32 +103,6 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
       <SettingRow inline className="pref-permission-row" label="诊断信息" description="复制版本、权限与助手状态，便于排查问题。"
         control={<DiagnosticsButton run={run} className="secondary small" />} />
     </SectionGroup>
-  </>;
-}
-
-export function WritingSettings({ snapshot, run }: SettingsSectionProps) {
-  const level = useSettingDraft<WritingLevel>(writingLevel(snapshot.settings), value => run({ type: 'settings.save', patch: { cleanup: { enabled: value !== 'none' }, writing: { strength: value === 'light' ? 'light' : 'balanced' } } }));
-  const instructions = useSettingDraft(snapshot.settings.writing.instructions, value => run({ type: 'settings.save', patch: { writing: { instructions: value } } }));
-  const inactive = level.value === 'none';
-  const commitInstructions = () => { void instructions.commit(); };
-  return <>
-    <PageHeader title="表达风格" subtitle="决定识别结果如何整理。个人表达说明会随每次润色一起发送。" />
-    <SectionGroup icon={<Sparkles {...groupIcon} />} title="润色程度">
-      <SettingRow stacked className="pref-untitled writing-level" label="润色程度" control={<>
-        <Segmented ariaLabel="润色程度" options={writingLevels} value={level.value} disabled={level.status === 'saving'} onChange={value => { level.edit(value); void level.commit(value); }} />
-        <p className="pref-hint">{writingLevels.find(item => item.value === level.value)?.hint}</p>
-      </>} status={saving(level.status, () => { void level.commit(); })} />
-    </SectionGroup>
-    <SectionGroup className={inactive ? 'writing-inactive' : ''} icon={<PenLine {...groupIcon} />} title="个人表达说明">
-      <SettingRow stacked className="pref-untitled writing-instructions" label="个人表达说明" htmlFor="writing-instructions"
-        control={<textarea id="writing-instructions" value={instructions.value} placeholder="例如：保留英文技术术语，使用简体中文。"
-          onChange={(event: ChangeEvent<HTMLTextAreaElement>) => instructions.edit(event.target.value)}
-          onBlur={commitInstructions}
-          onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); commitInstructions(); } }} />}
-        status={<div className="pref-status">
-          <p className="pref-hint">{inactive ? '开启润色后生效，说明会保留。' : '离开输入框自动保存，也可按 ⌘ / Ctrl + Enter。'}</p>
-          {saving(instructions.status, commitInstructions)}
-        </div>} />
-    </SectionGroup>
+    <AboutGroup snapshot={snapshot} run={run} />
   </>;
 }
