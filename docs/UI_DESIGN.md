@@ -541,3 +541,24 @@ Sentence case, short, no exclamation marks. Destinations are Home, AI Setup and 
 - `npm test` includes the catalogue checks and the store's language validation.
 - `npm run test:desktop` switches to English on 基本设置, asserts the navigation, the 关于 row and the document language, checks the three pages at the 880 × 600 minimum for horizontal overflow and for any remaining Chinese text, photographs them, switches back, and toggles the language on the welcome screen during the guide rerun.
 
+## 15. In-place update on macOS (2026-09-23)
+
+Requested after 2.3.0: the 关于 row should finish an update by itself instead of handing the user a disk image to drag into Applications. Windows keeps the manual archive. Section 13.5 stays valid except where this section changes the `downloaded` and `error` states.
+
+### 15.1 States and controls
+
+- `downloaded` (macOS): primary button **安装并重启** (`Install and restart`) → `update.install`. The notes carry **更新说明**, a **打开安装包** text button (the manual route, `update.open`) and the hint "安装时会替换应用程序文件夹中的 Typeless 并自动重新打开；升级后需重新授权辅助功能。". Windows keeps the secondary **打开安装包** button and its own hint.
+- `installing`: badge **正在安装…** (`Installing…`), disabled button **安装中…**. The application quits and reopens by itself when the install succeeds, so this state has no other exit than the relaunch.
+- `error` with an install code (`not_installed`, `mount_failed`, `invalid_installer`, `install_failed`) and a `filePath`: badge **安装失败** (`Install failed`), secondary button **重试安装** (`Try installing again`) → `update.install`, notes with the mapped message and the **打开安装包** text button. Other error codes keep the **重试** check button.
+- Messages: `not_installed` "当前运行的不是已安装的 Typeless（可能直接从安装镜像或开发环境启动），请手动安装。", `mount_failed` "无法打开安装镜像，请重新下载。", `invalid_installer` "安装镜像中的应用与预期版本不符或已损坏。", `install_failed` "无法替换应用程序文件夹中的 Typeless，请打开安装包手动安装。".
+
+### 15.2 Mechanism (main process)
+
+`electron/update-installer.ts`, called by `UpdateChecker.install()` with the downloaded path and the release version: refuse unless the running bundle is a packaged `.app` outside `/Volumes` whose parent folder is writable; `hdiutil attach -nobrowse -readonly -plist`; require the same `CFBundleIdentifier`, the expected `CFBundleShortVersionString`, a passing `codesign --verify --deep --strict` and, when the installed copy is certificate-signed, an identical designated requirement (`codesign -d -r-`), so only bundles sealed by the same project certificate replace it; `ditto` the bundle to a hidden sibling, rename the installed bundle aside, rename the copy into place (restoring the old one if that fails), delete the old bundle; `hdiutil detach`; delete the image; then the existing `relaunch()` (`open` after the process exits, forwarding `TYPELESS_DATA_DIR` / `TYPELESS_UPDATE_URL` with `--env`). Any failure keeps the downloaded image so **打开安装包** still works.
+
+### 15.3 Acceptance
+
+- Unit: `tests/update-installer.test.ts` drives the sequence with fake `hdiutil` / `codesign` / `ditto` runners; `tests/update-checker.test.ts` covers `install()` (relaunch on success, retry and manual open after failure, `not_installed` without an installer).
+- Desktop e2e: in a development build the install attempt must fail with `not_installed` and leave **重试安装** and **打开安装包** in place.
+- `npm run test:update-mac`: copies the packaged app under `.local/`, seals a version-9.0.0 twin ad hoc, serves it as a release on loopback, and asserts that the copy installs it over itself, unmounts, removes the image and comes back as one relaunched process in the isolated profile.
+

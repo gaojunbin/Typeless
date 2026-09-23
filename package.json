@@ -1,6 +1,6 @@
 {
   "name": "typeless-desktop",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "description": "Personal AI dictation for macOS and Windows",
@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:desktop": "node tests/desktop.e2e.mjs",
     "test:delivery": "node tests/dictation-delivery.e2e.mjs",
+    "test:update-mac": "node tests/update-install.e2e.mjs",
     "verify:windows": "node scripts/verify-windows-helper.mjs",
     "package:mac": "node scripts/package.mjs mac",
     "package:win": "node scripts/package.mjs win",
@@ -47,7 +48,7 @@
       }
     ],
     "mac": {
-      "identity": "-",
+      "identity": "Typeless Project",
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "extendInfo": {

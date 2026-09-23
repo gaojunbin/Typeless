@@ -27,6 +27,7 @@ npm run typecheck
 npm test                 # Vitest unit tests
 npm run test:desktop     # Playwright Electron e2e with fake audio and mock providers (build first)
 npm run test:delivery    # real paste into a disposable Electron editor; needs existing OS permissions
+npm run test:update-mac  # macOS only: in-place update of a packaged copy under .local/ (run package:mac first)
 npm run verify:windows   # compile check of native/windows/Helper.cs with dotnet
 native/bin/typeless-native --self-test
 ```
@@ -40,7 +41,13 @@ npm run package:mac   # arm64 DMG -> release/Typeless-<version>-arm64.dmg
 npm run package:win   # x64 portable ZIP -> release/Typeless-<version>-win.zip
 ```
 
-macOS output is ad-hoc signed and not notarized; every build has a new code identity, so Accessibility and Input Monitoring grants do not carry over between builds. Windows output is unsigned. Package output is not a release: the [validation record](VALIDATION.md) lists the integrity, signature and runtime checks a build must pass, and its "Reproduce" section is the release checklist. GitHub Releases carry the installers together with the SHA-256 digests that the in-app update check verifies.
+macOS output is sealed with the project's fixed self-signed certificate, **Typeless Project**, and is not notarized. The fixed identity is what lets Accessibility and Input Monitoring grants survive upgrades: macOS remembers the signer, and every release carries the same one. Gatekeeper still warns on the first install because no Apple certificate is involved. Windows output is unsigned.
+
+### Signing identity
+
+- The certificate lives only in the maintainer's login keychain; the repository holds nothing but its name (`build.mac.identity`). The private key must never be committed, and a password-protected `.p12` backup belongs in a password manager: losing the key means a new identity, and users of the following release have to grant the permissions once more and install that one release by hand (the in-place installer only accepts bundles sealed by the same certificate).
+- Creating it (once, on the release machine): Keychain Access → Certificate Assistant → Create a Certificate…; name `Typeless Project`, identity type Self Signed Root, certificate type Code Signing; tick "Let me override defaults" and set the validity to 3650 days, keep the other defaults, keychain "login". Then open the certificate, expand Trust and set Code Signing to Always Trust, and open its private key → Access Control → allow all applications (or add `codesign`), so `npm run package:mac` can sign without a dialog. `security find-identity -v -p codesigning` must list `Typeless Project` afterwards.
+- Machines without that certificate (contributors, CI) build with `TYPELESS_SIGN_IDENTITY=- npm run package:mac` for an ad-hoc seal, or point the variable at their own certificate. Ad-hoc builds behave like releases before 2.4.0: each one is a new identity to macOS. Package output is not a release: the [validation record](VALIDATION.md) lists the integrity, signature and runtime checks a build must pass, and its "Reproduce" section is the release checklist. GitHub Releases carry the installers together with the SHA-256 digests that the in-app update check verifies; on macOS the app then installs the DMG in place and relaunches, on Windows it opens the archive.
 
 ## Data, logs and environment
 

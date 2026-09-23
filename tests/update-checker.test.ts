@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { UpdateChecker } from '../electron/update-checker';
+import { UpdateFailure } from '../src/core/update';
 import type { UpdateState } from '../src/shared/contracts';
 
 const dirs: string[] = [];
@@ -17,7 +18,7 @@ function release(version: string, options: { digest?: string; asset?: boolean } 
   return { tag_name: `v${version}`, html_url: `https://github.com/gaojunbin/Typeless/releases/tag/v${version}`, assets: options.asset === false ? [] : [{ name: `Typeless-${version}-arm64.dmg`, browser_download_url: assetUrl, size: payload.length, ...(options.digest ? { digest: options.digest } : {}) }] };
 }
 
-function create(latest: unknown, body: Buffer = payload) {
+function create(latest: unknown, body: Buffer = payload, extra: { installer?: (filePath: string, version: string) => Promise<void>; relaunch?: () => void } = {}) {
   mkdirSync('.local/tests', { recursive: true });
   const downloadsDir = mkdtempSync('.local/tests/update-'); dirs.push(downloadsDir);
   const states: UpdateState[] = [];
@@ -28,7 +29,7 @@ function create(latest: unknown, body: Buffer = payload) {
     return new Response('missing', { status: 404 });
   }) as unknown as typeof fetch;
   const opened: string[] = [];
-  const checker = new UpdateChecker({ currentVersion: '2.1.1', platform: 'darwin', arch: 'arm64', downloadsDir, fetcher, onChange: state => states.push(state), openPath: async path => { opened.push(path); }, openExternal: async url => { opened.push(url); } });
+  const checker = new UpdateChecker({ currentVersion: '2.1.1', platform: 'darwin', arch: 'arm64', downloadsDir, fetcher, onChange: state => states.push(state), openPath: async path => { opened.push(path); }, openExternal: async url => { opened.push(url); }, ...extra });
   return { checker, states, downloadsDir, opened, fetcher };
 }
 
@@ -89,5 +90,41 @@ describe('installer download', () => {
     await checker.check(releaseUrl);
     expect((await checker.download()).status).toBe('none');
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('in-place install', () => {
+  it('installs the downloaded release and relaunches', async () => {
+    const installer = vi.fn(async () => {});
+    const relaunch = vi.fn();
+    const { checker, states, downloadsDir } = create(release('9.0.0', { digest }), payload, { installer, relaunch });
+    await checker.check(releaseUrl); await checker.download();
+    await checker.install();
+    expect(installer).toHaveBeenCalledWith(join(downloadsDir, 'Typeless-9.0.0-arm64.dmg'), '9.0.0');
+    expect(relaunch).toHaveBeenCalledTimes(1);
+    expect(states.at(-1)).toMatchObject({ status: 'installing', latestVersion: '9.0.0', filePath: join(downloadsDir, 'Typeless-9.0.0-arm64.dmg') });
+  });
+  it('keeps the installer for a manual open and allows a retry when the install fails', async () => {
+    const installer = vi.fn<(filePath: string, version: string) => Promise<void>>(async () => { throw new UpdateFailure('install_failed'); });
+    const relaunch = vi.fn();
+    const { checker, downloadsDir, opened } = create(release('9.0.0', { digest }), payload, { installer, relaunch });
+    await checker.check(releaseUrl); await checker.download();
+    const failed = await checker.install();
+    const target = join(downloadsDir, 'Typeless-9.0.0-arm64.dmg');
+    expect(failed).toMatchObject({ status: 'error', error: 'install_failed', filePath: target, latestVersion: '9.0.0' });
+    expect(relaunch).not.toHaveBeenCalled();
+    await checker.open();
+    expect(opened).toEqual([target]);
+    installer.mockImplementation(async () => {});
+    await checker.install();
+    expect(installer).toHaveBeenCalledTimes(2);
+    expect(relaunch).toHaveBeenCalledTimes(1);
+  });
+  it('reports not_installed without an installer and ignores requests before a download', async () => {
+    const { checker, downloadsDir } = create(release('9.0.0', { digest }));
+    await checker.check(releaseUrl);
+    expect((await checker.install()).status).toBe('available');
+    await checker.download();
+    expect(await checker.install()).toMatchObject({ status: 'error', error: 'not_installed', filePath: join(downloadsDir, 'Typeless-9.0.0-arm64.dmg') });
   });
 });

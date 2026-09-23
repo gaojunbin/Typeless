@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
-import type { UpdateState } from '../src/shared/contracts';
+import { installErrors, type UpdateState } from '../src/shared/contracts';
 import { compareVersions, parseLatestRelease, pickAsset, trustedDownloadUrl, UpdateFailure, type LatestRelease, type ReleaseAsset } from '../src/core/update';
 
 export interface UpdateCheckerOptions {
@@ -17,6 +17,10 @@ export interface UpdateCheckerOptions {
   onChange: (state: UpdateState) => void;
   openPath: (path: string) => Promise<unknown>;
   openExternal: (url: string) => Promise<unknown>;
+  /** Replaces the installed application with the downloaded installer; absent on platforms without in-place install. */
+  installer?: (filePath: string, version: string) => Promise<void>;
+  /** Quits and reopens the application after a successful install. */
+  relaunch?: () => void;
 }
 
 const releaseDocumentLimit = 1_000_000;
@@ -139,8 +143,27 @@ export class UpdateChecker {
     return hash.digest('hex');
   }
 
+  /** Opens the downloaded installer for a manual install; also the fallback after a failed in-place install. */
   async open(): Promise<void> {
-    if (this.state.status === 'downloaded' && this.state.filePath) await this.options.openPath(this.state.filePath);
+    if (this.state.filePath && (this.state.status === 'downloaded' || this.state.status === 'error')) await this.options.openPath(this.state.filePath);
+  }
+
+  /** Installs the downloaded release in place and relaunches; a failure keeps the installer for `open()`. */
+  async install(): Promise<UpdateState> {
+    const { filePath, latestVersion, status, error } = this.state;
+    const retryable = status === 'downloaded' || (status === 'error' && !!error && (installErrors as readonly string[]).includes(error));
+    if (!retryable || !filePath || !latestVersion) return this.state;
+    const base = { currentVersion: this.options.currentVersion, latestVersion, releaseUrl: this.state.releaseUrl, assetName: this.state.assetName, filePath, checkedAt: this.state.checkedAt };
+    if (!this.options.installer) { this.emit({ status: 'error', error: 'not_installed', ...base }); return this.state; }
+    this.emit({ status: 'installing', ...base });
+    try {
+      await this.options.installer(filePath, latestVersion);
+    } catch (failure) {
+      this.emit({ status: 'error', error: failure instanceof UpdateFailure ? failure.code : 'install_failed', ...base });
+      return this.state;
+    }
+    this.options.relaunch?.();
+    return this.state;
   }
 
   async openRelease(): Promise<void> {

@@ -53,8 +53,11 @@ export interface Permissions {
   shortcutPresses: number;
 }
 
-export type UpdateStatus = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'downloaded' | 'error';
-export type UpdateError = 'network' | 'invalid_response' | 'no_asset' | 'checksum' | 'write_failed';
+export type UpdateStatus = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
+export type UpdateError = 'network' | 'invalid_response' | 'no_asset' | 'checksum' | 'write_failed' | InstallError;
+/** Failures of the macOS in-place install; the downloaded installer stays available for a manual install. */
+export type InstallError = 'not_installed' | 'mount_failed' | 'invalid_installer' | 'install_failed';
+export const installErrors: readonly InstallError[] = ['not_installed', 'mount_failed', 'invalid_installer', 'install_failed'];
 
 /** Release check against GitHub. The renderer only renders it; main owns every transition. */
 export interface UpdateState {
@@ -102,6 +105,7 @@ export type AppAction =
   | { type: 'update.check' }
   | { type: 'update.download' }
   | { type: 'update.open' }
+  | { type: 'update.install' }
   | { type: 'update.openRelease' };
 
 export interface ActionResult {

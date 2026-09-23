@@ -512,6 +512,18 @@ try {
   await expect(page.getByRole('button', { name: '打开安装包', exact: true })).toBeVisible({ timeout: 15000 });
   const updateState = (await snapshot(page)).update;
   assert.equal(updateState.status, 'downloaded');
+  if (process.platform === 'darwin') {
+    // macOS installs in place. A development build has no installed bundle (not_installed) and a copy running from a
+    // read-only image cannot be replaced (install_failed); either way the attempt must fail cleanly and keep the manual path.
+    await page.getByRole('button', { name: '安装并重启', exact: true }).click();
+    await expect(page.locator('.about-row .badge')).toHaveText('安装失败', { timeout: 15000 });
+    const failed = (await snapshot(page)).update;
+    assert.equal(failed.status, 'error'); assert.equal(failed.filePath, updateState.filePath);
+    assert.ok(['not_installed', 'install_failed'].includes(failed.error), `install attempt must fail as not_installed or install_failed, got ${failed.error}`);
+    await expect(page.getByRole('button', { name: '重试安装', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '打开安装包', exact: true })).toBeVisible();
+    assert.ok((await page.locator('.about-row .about-notes').innerText()).includes('手动安装'));
+  }
   assert.ok(updateState.filePath.startsWith(join(dataRoot, 'downloads')), 'The installer must land in the profile downloads folder.');
   assert.equal((await readFile(updateState.filePath)).length, updatePayload.length);
   assert.equal(await page.locator('.sidebar-update').count(), 0, 'The sidebar pill disappears once the installer is downloaded.');
@@ -566,7 +578,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'install-attempt-fails-cleanly-in-development', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

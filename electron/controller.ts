@@ -18,6 +18,7 @@ export interface ControllerHost {
   checkUpdate(): Promise<void>;
   downloadUpdate(): Promise<void>;
   openUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
   openReleasePage(): Promise<void>;
   settingsChanged(changes: { login: boolean; shortcut: boolean }): Promise<void>;
 }
@@ -73,6 +74,7 @@ export class Controller {
         case 'update.check': await this.host.checkUpdate(); break;
         case 'update.download': await this.host.downloadUpdate(); break;
         case 'update.open': await this.host.openUpdate(); break;
+        case 'update.install': await this.host.installUpdate(); break;
         case 'update.openRelease': await this.host.openReleasePage(); break;
         default: throw new Error('Unsupported action.');
       }

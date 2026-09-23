@@ -23,6 +23,9 @@ const env = {
 const build = spawnSync(process.execPath, ['scripts/build.mjs'], { cwd: root, env, stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 const args = target === 'mac' ? ['--mac', 'dmg', '--arm64'] : ['--win', target === 'installer' ? 'nsis' : 'zip', '--x64'];
+// Releases are sealed with the fixed project certificate named in package.json; TYPELESS_SIGN_IDENTITY overrides it
+// for machines without that certificate ("-" seals ad hoc, which loses the system permission grants on every build).
+if (target === 'mac' && process.env.TYPELESS_SIGN_IDENTITY) args.push(`--config.mac.identity=${process.env.TYPELESS_SIGN_IDENTITY}`);
 if (target === 'mac' && process.platform === 'darwin' && process.arch === 'arm64') args.push('--config.electronDist=node_modules/electron/dist');
 const packaged = spawnSync(process.execPath, [require.resolve('electron-builder/out/cli/cli.js'), ...args], { cwd: root, env, stdio: 'inherit' });
 process.exitCode = packaged.status ?? 1;

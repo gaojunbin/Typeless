@@ -1,6 +1,6 @@
-# Version 2.3.0 Validation
+# Version 2.4.0 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -111,16 +111,54 @@ Requested after 2.2.1: every piece of interface copy in Chinese and English with
 - The English copy was reviewed twice by reading (once per string against its Chinese source), not by an English-speaking user.
 - The tray menu and the capsule context menu follow the setting, but no automated test drives a tray menu; the rebuild was verified by reading the code.
 
+## In-place update on macOS (2.4.0, 2026-09-23)
+
+Requested after 2.3.0: the 关于 row's **打开安装包** step gave the user a disk image to drag into Applications by hand. Specified in [UI design](UI_DESIGN.md) section 15: on macOS **安装并重启** now mounts the downloaded image, checks the bundle identifier, the expected version and the code signature, copies the bundle beside the installed one, swaps it in with two renames, unmounts, deletes the image and relaunches through `open`; every failure keeps the image so **打开安装包** still works. Windows keeps the manual archive. The rows below are the runs on the source tree while the feature was built; the 2.4.0 package rows follow in the signing section.
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean. `npm run build` and `npm run package:mac` completed (the local `release/Typeless-2.3.0-arm64.dmg` was rebuilt from this tree for the acceptance run and no longer matches the published 2.3.0 file). |
+| Automated regressions | `npm test`: **124 tests in 14 files passed** (115 before). New `tests/update-installer.test.ts` drives the mount / validate / copy / swap / detach sequence with fake `hdiutil`, `codesign`, `ditto` and `rm` runners (success, not_installed, version and identifier mismatch, unsigned bundle, mount failure, copy failure with cleanup); `tests/update-checker.test.ts` covers `install()` (relaunch on success, retry and manual open after a failure, `not_installed` without an installer). |
+| Desktop integration | `npm run test:desktop`: **42 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-JtQ1Ft/result.json`](../.local/desktop-e2e-JtQ1Ft/result.json). New check `install-attempt-fails-cleanly-in-development`: after the mocked download, **安装并重启** in the development build ends in **安装失败** with `not_installed`, keeps the file path, and offers **重试安装** and **打开安装包**. An earlier run of the same source stopped at launch before any assertion (no screenshot was written); the rerun passed. |
+| Delivery | `npm run test:delivery` on the same source: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-52NSIG/result.json`](../.local/delivery-e2e-52NSIG/result.json). |
+| In-place update (packaged copy) | `npm run test:update-mac`: a copy of the packaged 2.3.0 app under `.local/` was pointed at a loopback release document serving a version-9.0.0 twin (same bundle, `Info.plist` bumped, sealed ad hoc); through the real actions it reported the release, downloaded the image with a matching digest, installed it, quit, came back as exactly one relaunched process in the isolated profile (the relaunch forwards `TYPELESS_DATA_DIR` / `TYPELESS_UPDATE_URL` with `open --env`), and left a sealed 9.0.0 bundle with no staging or previous copy, no mounted image and no leftover disk image: **6 checks passed**, receipt [`.local/update-e2e-CxjawF/result.json`](../.local/update-e2e-CxjawF/result.json). The first attempt left the old bundle behind because Electron's asar-aware `fs` refuses to delete `app.asar`; bundle trees are now removed with `/bin/rm`, and the rerun passed. |
+
+### Limits of this record
+
+- The swap was exercised on a copy under the repository, not on `/Applications`; a non-admin account without write access to `/Applications` gets `install_failed` and the manual route, which was not observed on a real machine.
+- Accessibility and Input Monitoring grants for the relaunched build were not exercised; ad-hoc signatures still change identity, so a real upgrade still asks for them again.
+- The published 2.3.0 packages predate this change; 2.4.0 is the first release that can update itself in place, and a 2.3.0 installation still shows **打开安装包** for this one upgrade.
+
+## Fixed signing identity (2.4.0, 2026-09-23)
+
+Requested after the in-place update landed: the maintainer chose a fixed self-signed certificate over an Apple Developer ID so that no personal name travels in the binaries and no Apple credentials are needed. macOS remembers the signer's designated requirement when a permission is granted; with an ad-hoc seal that requirement is the per-build `cdhash`, with a certificate it is `identifier … and certificate leaf = H"…"`, identical for every build sealed by the same certificate.
+
+| Check | Result and scope |
+| --- | --- |
+| Certificate | `Typeless Project`, self-signed, code-signing extended key usage (critical), valid 2026-09-23 to 2036-09-20, created in Keychain Access on the release machine; `security find-identity -v -p codesigning` lists it. A scratch binary signed with it from the command line produced no keychain prompt, verified with `codesign --verify --strict`, and carried the designated requirement `identifier "ls-signtest" and certificate leaf = H"2e57c7f29ac5f05fdb770163bd25aa9f50ddf31d"`. Only the name is in the repository (`build.mac.identity`). |
+| Packaging | `npm run package:mac` signed with `identityName=Typeless Project`; the bundle and the bundled native helper report `Authority=Typeless Project`, `codesign --verify --deep --strict` passes, and the designated requirement is `identifier "dev.typeless.desktop" and certificate leaf = H"2e57c7f2…"`. `TYPELESS_SIGN_IDENTITY=- npm run package:mac` still produces an ad-hoc seal for machines without the certificate. |
+| Automated regressions | `npm test`: **125 tests in 14 files passed**. `tests/update-installer.test.ts` gains the signer rule: a certificate-signed installation accepts only a bundle with the identical designated requirement, rejects an ad-hoc bundle and one sealed by another certificate, and an ad-hoc installation accepts the first signed build. |
+| In-place update (signed copy) | `npm run test:update-mac` against the signed build: the version-9.0.0 twin was re-sealed with the same identity, and the installer's requirement comparison passed on its way to the swap: **6 checks passed**, receipt [`.local/update-e2e-ZFXlHc/result.json`](../.local/update-e2e-ZFXlHc/result.json) (`signingIdentity: Typeless Project`). Because the twin is a different build, this run is also the evidence that the designated requirement does not change between builds. |
+| 2.4.0 packages | With the version at 2.4.0 on the final source: `npm run typecheck` clean, `npm test` **125 tests in 14 files**, `native/bin/typeless-native --self-test` passed; development `npm run test:desktop` **42 checks, 4 mock HTTP requests** ([`.local/desktop-e2e-nhRMBo`](../.local/desktop-e2e-nhRMBo/result.json)) and `npm run test:delivery` **5 scenarios** ([`.local/delivery-e2e-4r6K5w`](../.local/delivery-e2e-4r6K5w/result.json)); `npm run package:mac` signed with `Typeless Project` and `npm run package:win` built the ledger artifacts below. From the read-only mounted 2.4.0 DMG: desktop **42 checks, 4 mock HTTP requests** ([`.local/desktop-e2e-6Sx70N`](../.local/desktop-e2e-6Sx70N/result.json)), delivery **5 scenarios** ([`.local/delivery-e2e-mS1jOw`](../.local/delivery-e2e-mS1jOw/result.json)). `npm run test:update-mac` against the 2.4.0 build: **6 checks passed**, `signingIdentity: Typeless Project`, receipt [`.local/update-e2e-MxMV8A`](../.local/update-e2e-MxMV8A/result.json). |
+| Packaged macOS desktop integration (pre-bump signed build) | Application launched from the read-only mounted signed DMG: **42 checks passed with 4 mock HTTP requests**, receipt [`.local/desktop-e2e-5y8c6F/result.json`](../.local/desktop-e2e-5y8c6F/result.json). From the read-only image the install attempt ends in `install_failed` (the folder cannot be written) rather than the development build's `not_installed`; the stage accepts both clean failures and checks the same recovery controls. An earlier mounted run of the same source failed only on that assertion, which had allowed `not_installed` alone. | |
+| Packaged macOS delivery (pre-bump signed build) | Same mounted application: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-jtkYsw/result.json`](../.local/delivery-e2e-jtkYsw/result.json). |
+
+### Limits of this record
+
+- Permission persistence itself (an Accessibility grant made to one signed build still applying to the next) was not observed on a real machine yet; the evidence is the identical designated requirement, which is what TCC stores. The first signed release still needs one manual grant when it replaces an ad-hoc 2.3.x installation.
+- Gatekeeper behaviour is unchanged: no Apple certificate, so the first browser download still warns.
+- The certificate exists only on the release machine; the repository cannot reproduce a signed release without it, and losing it means one manual install and one re-grant for users of the following release.
+
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.3.0-arm64.dmg) | Verified | 131,066,096 | `48b0f2fc9860aa5859d4e0a816c876b228eab2b1f96d68d2bc13f7b51aa9125b` |
-| [Windows x64 portable ZIP](../release/Typeless-2.3.0-win.zip) | Integrity verified | 157,584,776 | `525ad0cddf74949b36998c1e6f41340043fc627b8990a4f692c1edfc971fb42c` |
+| [macOS arm64 DMG](../release/Typeless-2.4.0-arm64.dmg) | Verified | 131,585,107 | `7b5a3c7e605abd6ac3e1db50c9c9722884b0a143318ede713d5fc84a3afcc548` |
+| [Windows x64 portable ZIP](../release/Typeless-2.4.0-win.zip) | Integrity verified | 157,590,853 | `51d898a09f2ca028d42c81d3c02e82cca66f44c3d2a8fc5df916415e924dc20a` |
 
-The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.3.0 and a minimum macOS of 13.0, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.4.0 and a minimum macOS of 13.0, its signature reports `Authority=Typeless Project` with the designated requirement `identifier "dev.typeless.desktop" and certificate leaf = H"2e57c7f2…"`, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
 
-The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file, and `resources/app.asar` is byte-identical to the macOS bundle's. macOS is ad-hoc signed without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
+The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file, and `resources/app.asar` is byte-identical to the macOS bundle's. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 
 ## Reproduce
 
@@ -143,12 +181,12 @@ Both Electron harnesses create isolated `.local/` profiles and use fake audio, m
 cd path/to/Typeless
 npm run package:mac
 npm run package:win
-hdiutil verify release/Typeless-2.3.0-arm64.dmg
+hdiutil verify release/Typeless-2.4.0-arm64.dmg
 codesign --verify --deep --strict --verbose=2 release/mac-arm64/Typeless.app
-unzip -t release/Typeless-2.3.0-win.zip
-shasum -a 256 release/Typeless-2.3.0-arm64.dmg release/Typeless-2.3.0-win.zip
+unzip -t release/Typeless-2.4.0-win.zip
+shasum -a 256 release/Typeless-2.4.0-arm64.dmg release/Typeless-2.4.0-win.zip
 mkdir -p .cache/dmg-acceptance
-hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.3.0-arm64.dmg
+hdiutil attach -readonly -nobrowse -mountpoint .cache/dmg-acceptance release/Typeless-2.4.0-arm64.dmg
 codesign --verify --deep --strict --verbose=2 .cache/dmg-acceptance/Typeless.app
 TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:desktop
 TYPELESS_EXECUTABLE="$PWD/.cache/dmg-acceptance/Typeless.app/Contents/MacOS/Typeless" npm run test:delivery

@@ -22,18 +22,18 @@ Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-rec
 - **Polishing you control.** Choose 不润色, 轻度润色 or 强力润色 and add a free-text 个人表达说明 for names, terms and habits. The prompt asks the model to keep facts, names and numbers, and if polishing fails the raw transcript is still delivered.
 - **Copy first, paste optional.** Every result lands on the clipboard; 完成后自动粘贴 sends Command/Ctrl+V to the current app. Typeless never presses Enter.
 - **Guided setup.** The first launch walks through permissions, microphone and shortcut, then points you at the AI settings.
-- **Built-in update check.** 基本设置 → 关于 checks GitHub Releases, downloads the installer with checksum verification and opens it for you.
+- **Built-in updates.** 基本设置 → 关于 checks GitHub Releases and downloads the installer with checksum verification. On macOS one click installs it in place and reopens Typeless; on Windows it opens the archive for you.
 - **Chinese or English.** The whole interface is available in both; switch on the welcome screen or under 基本设置 → 通用 → 语言.
 
 The interface defaults to Chinese. Source code and documentation are in English.
 
 ## Install
 
-**macOS (Apple silicon, macOS 13 or later).** Download `Typeless-<version>-arm64.dmg`, drag Typeless into Applications and open it. The build is ad-hoc signed, so macOS warns that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. Grant the microphone and 辅助功能 when the setup guide asks.
+**macOS (Apple silicon, macOS 13 or later).** Download `Typeless-<version>-arm64.dmg`, drag Typeless into Applications and open it. The build is signed with the project's own certificate rather than an Apple one, so macOS warns that the developer cannot be verified; allow the app under 系统设置 → 隐私与安全性. Grant the microphone and 辅助功能 when the setup guide asks.
 
 **Windows (x64, Windows 10 or later).** Download `Typeless-<version>-win.zip`, extract the whole folder and run `Typeless.exe`. The build is unsigned, so SmartScreen may ask you to confirm before it runs.
 
-**Upgrading on macOS.** Each release has a new code identity. Quit Typeless, remove its entries under 系统设置 → 隐私与安全性 → 辅助功能 and 输入监控, install the new version and grant again.
+**Upgrading on macOS.** Releases are sealed with one fixed project certificate, so once you have granted 辅助功能 and 输入监控 to a release from 2.4.0 on, later updates keep those grants and install themselves from 基本设置 → 关于. Coming from 2.3.x or earlier: quit Typeless, remove its entries under 系统设置 → 隐私与安全性 → 辅助功能 and 输入监控, install the new version and grant once more.
 
 ## Quick start
 
@@ -55,7 +55,7 @@ Audio goes only to the speech provider you configured, and the transcript only t
 
 ## Status
 
-Typeless is an independent project and is not affiliated with the commercial Typeless service. macOS builds are ad-hoc signed and not notarized; Windows builds are unsigned and have not been run by the maintainer. The [validation record](docs/VALIDATION.md) lists what has actually been checked for the current release.
+Typeless is an independent project and is not affiliated with the commercial Typeless service. macOS builds are sealed with a self-signed project certificate, not an Apple one, and are not notarized; Windows builds are unsigned and have not been run by the maintainer. The [validation record](docs/VALIDATION.md) lists what has actually been checked for the current release.
 
 ## License
 

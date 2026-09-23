@@ -11,6 +11,7 @@ import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
 import { ClipboardDelivery } from './clipboard-delivery';
 import { UpdateChecker } from './update-checker';
+import { installMacUpdate } from './update-installer';
 import { shortcutPermissions } from './shortcut-status';
 
 const dataRoot = resolve(process.env.TYPELESS_DATA_DIR || (app.isPackaged ? app.getPath('userData') : join(app.getAppPath(), '.local', 'app')));
@@ -178,7 +179,9 @@ async function copyDiagnostics(): Promise<void> {
 function relaunch() {
   if (app.isPackaged && process.platform === 'darwin') {
     // Relaunching through `open` on the bundle gives the new instance the same launch identity as Finder does.
-    spawn('/bin/sh', ['-c', 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; exec /usr/bin/open "$2"', 'sh', String(process.pid), bundlePath()],
+    // `open` drops the environment, so the isolation variables that test profiles rely on are forwarded explicitly.
+    const forwarded = ['TYPELESS_DATA_DIR', 'TYPELESS_UPDATE_URL'].filter(key => process.env[key]).flatMap(key => ['--env', `${key}=${process.env[key]}`]);
+    spawn('/bin/sh', ['-c', 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; shift; exec /usr/bin/open "$@"', 'sh', String(process.pid), ...forwarded, bundlePath()],
       { detached: true, stdio: 'ignore' }).unref();
   } else app.relaunch();
   app.quit();
@@ -250,6 +253,7 @@ else {
       checkUpdate: async () => { await updateChecker.check(updateUrl === 'off' ? defaultUpdateUrl : updateUrl); },
       downloadUpdate: async () => { await updateChecker.download(); },
       openUpdate: () => updateChecker.open(), openReleasePage: () => updateChecker.openRelease(),
+      installUpdate: async () => { await updateChecker.install(); },
     }, app.getVersion());
     updateChecker = new UpdateChecker({
       currentVersion: app.getVersion(), platform: process.platform, arch: process.arch,
@@ -257,6 +261,11 @@ else {
       downloadsDir: process.env.TYPELESS_DATA_DIR ? join(dataRoot, 'downloads') : app.getPath('downloads'),
       onChange: state => { if (!quitting && controller) controller.setUpdate(state); },
       openPath: path => shell.openPath(path), openExternal: url => shell.openExternal(url),
+      // In-place install exists on macOS only; the packaged bundle is the target, a development build has none.
+      installer: process.platform === 'darwin'
+        ? (filePath, version) => installMacUpdate(filePath, version, { bundlePath: app.isPackaged ? bundlePath() : undefined, log: line => console.log(`[update] ${line}`) })
+        : undefined,
+      relaunch,
     });
     const checkSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) => {
       if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !trusted(event.sender, event.senderFrame.url)) throw new Error('Untrusted IPC sender.');
