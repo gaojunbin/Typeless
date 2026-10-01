@@ -9,6 +9,7 @@ import type { AppAction, CaptureEvent, Language, Permissions } from '../src/shar
 import { Controller } from './controller';
 import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
+import { EscapeCancel } from './escape-cancel';
 import { ClipboardDelivery } from './clipboard-delivery';
 import { UpdateChecker } from './update-checker';
 import { installMacUpdate } from './update-installer';
@@ -65,6 +66,7 @@ const devUrl = process.env.VITE_DEV_SERVER_URL;
 const pageUrl = devUrl ? new URL(devUrl).origin : pathToFileURL(join(app.getAppPath(), 'dist', 'index.html')).toString();
 if (devUrl && !['localhost', '127.0.0.1'].includes(new URL(devUrl).hostname)) throw new Error('Development UI must use loopback.');
 const native = new NativeClient({ onShortcut: () => shortcutPressed(), onStatus: status => { if (!quitting) { nativeAvailable = !status.error; recordNativeStatus(status); } } });
+const escapeCancel = new EscapeCancel(globalShortcut, () => { void controller?.dispatch({ type: 'dictation.cancel' }); });
 const delivery = new ClipboardDelivery((text, options) => native.paste(text, options));
 function shortcutPressed() {
   if (quitting || !store || !controller) return;
@@ -202,6 +204,7 @@ async function configureSettings(applyLogin = false, applyShortcut = true) {
   if (applyShortcut) {
     globalShortcut.unregisterAll();
     try { shortcutAvailable = globalShortcut.register(settings.shortcut.fallback, () => shortcutPressed()); } catch { shortcutAvailable = false; }
+    if (controller) escapeCancel.sync(controller.sessions.session.status);
     await native.configureShortcut(settings.shortcut.primary).catch(() => {});
   }
   if (applyLogin && app.isPackaged && ['darwin', 'win32'].includes(process.platform)) app.setLoginItemSettings({ openAtLogin: settings.general.launchAtLogin });
@@ -249,6 +252,7 @@ else {
         if (quitting || !mainWindow || mainWindow.isDestroyed() || !overlay || overlay.isDestroyed()) return;
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
+        escapeCancel.sync(snapshot.session.status);
         refreshTrayMenu();
       },
       permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },

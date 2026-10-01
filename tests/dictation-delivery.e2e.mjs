@@ -296,6 +296,26 @@ try {
   assert.equal(await fixture.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()), true);
   assert.equal(await app.evaluate(() => globalThis.__deliveryMainFocusCount), 0);
   checks.push({ action: 'overlay-processing-cancel', lateResponseFenced: true, clipboardWrites: 0, editorChanges: 0, noSubmit: true, overlayHidden: true, mainFocusCount: 0 });
+  stage('cancel recording with a real Escape key and release it afterwards');
+  if (process.platform === 'darwin') {
+    const pressEscape = () => execFileSync('osascript', ['-e', 'tell application "System Events" to key code 53'], { timeout: 5000 });
+    await targetPage.evaluate(() => { window.escapeCount = 0; document.addEventListener('keydown', event => { if (event.key === 'Escape') window.escapeCount++; }, true); });
+    const beforeEscapeWrites = await app.evaluate(() => globalThis.__deliveryClipboardWriteCount);
+    const beforeEscapeRequests = requests.length;
+    assert.equal((await dispatch({ type: 'dictation.toggle' })).ok, true);
+    await until(async () => assertCaptureStarted(await snapshot()), state => state.session.status === 'recording' && state.session.durationMs >= 600, 'Escape fixture audio did not start.');
+    pressEscape();
+    await until(snapshot, state => state.session.status === 'cancelled', 'Escape did not cancel the recording.');
+    await until(nativeWindows, windows => !windows.find(window => window.url.endsWith('#overlay')).visible, 'Escape-cancelled overlay did not hide.');
+    await pause(500);
+    assert.equal(requests.length, beforeEscapeRequests, 'Escape-cancelled recording sent a provider request.');
+    assert.equal(await app.evaluate(() => globalThis.__deliveryClipboardWriteCount), beforeEscapeWrites, 'Escape-cancelled recording wrote to the clipboard.');
+    assert.equal(await targetPage.evaluate(() => window.escapeCount), 0, 'Escape reached the foreground editor while dictation held it.');
+    pressEscape();
+    await until(() => targetPage.evaluate(() => window.escapeCount), count => count === 1, 'Escape was not released to the foreground editor after cancellation.');
+    assert.equal(await fixture.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()), true);
+    checks.push({ action: 'escape-recording-cancel', providerRequests: 0, clipboardWrites: 0, escapeHeldDuringSession: true, escapeReleasedAfter: true });
+  }
   screenshots.target = join(dataRoot, 'target-final.png'); await targetPage.screenshot({ path: screenshots.target });
   const trace = await mainPage.evaluate(() => window.__deliveryTrace);
   assert.ok(trace.some(event => event.status === 'inserting' && event.delivery === 'pending'));

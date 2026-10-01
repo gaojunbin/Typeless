@@ -32,7 +32,7 @@ npm run verify:windows   # compile check of native/windows/Helper.cs with dotnet
 native/bin/typeless-native --self-test
 ```
 
-`test:desktop` walks the setup guide, configuration, recording with fake audio, the mocked release check and recovery through real Electron IPC. `test:delivery` checks native paste, input events, clipboard retention, focus and the capsule; it requires permissions that are already granted and grants none. Both write isolated profiles and JSON receipts under `.local/`, must run serially and need a desktop. Set `TYPELESS_EXECUTABLE` to point them at a packaged binary. No automated test covers a physical shortcut, a real microphone, a live provider or the Windows runtime.
+`test:desktop` walks the setup guide, configuration, recording with fake audio, the mocked release check and recovery through real Electron IPC. `test:delivery` checks native paste, input events, clipboard retention, focus, the capsule and Esc cancellation (a real key press through System Events); it requires permissions that are already granted and grants none. Both write isolated profiles and JSON receipts under `.local/`, must run serially and need a desktop. Set `TYPELESS_EXECUTABLE` to point them at a packaged binary. No automated test covers a physical shortcut, a real microphone, a live provider or the Windows runtime.
 
 ## Packaging
 

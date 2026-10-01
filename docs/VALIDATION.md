@@ -1,6 +1,6 @@
-# Version 2.4.1 Validation
+# Version 2.4.2 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) and then the 2.4.2 packages (Esc cancels dictation) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -168,14 +168,30 @@ Reported: with several macOS desktops the capsule stayed on one of them instead 
 - The placement probe ran on the development build only; the packaged runs cover the existing suites, which do not check placement. No physical Fn press and no second machine. Windows keeps the pointer-display placement (its helper returns no bounds).
 - The Spaces observation covers this machine and macOS version; it does not rule out a different Spaces setup on the reporting machine.
 
+## Esc cancels dictation (2.4.2, 2026-10-02)
+
+Requested: Esc as the keyboard equivalent of the capsule's cancel control. `electron/escape-cancel.ts` registers Escape as an Electron global shortcut while the session is `arming`, `recording`, `transcribing`, `polishing` or `inserting`, dispatches `dictation.cancel` on a press, and unregisters it on every other status; a shortcut reconfiguration during a session registers it again.
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean; `npm run build` completed. |
+| Automated regressions | `npm test`: **131 tests in 15 files passed**; `tests/escape-cancel.test.ts` covers the held statuses, the cancel callback, re-registration after a cleared registry and a refused key. |
+| Delivery with a real key | `tests/dictation-delivery.e2e.mjs` gains a sixth scenario: while recording into the disposable editor, System Events presses key code 53; the session ends `cancelled` with no provider request and no clipboard write, the editor's capture-phase listener sees no Escape, and a second press after cancellation reaches the editor. Development run **6 scenarios passed** ([`.local/delivery-e2e-WTGwKp`](../.local/delivery-e2e-WTGwKp/result.json)); development desktop **42 checks** ([`.local/desktop-e2e-Or0HUX`](../.local/desktop-e2e-Or0HUX/result.json)). |
+| 2.4.2 packages | `npm run package:mac` signed with `Typeless Project` and `npm run package:win` built the ledger artifacts below. From the read-only mounted 2.4.2 DMG: desktop **42 checks** ([`.local/desktop-e2e-XQVZJO`](../.local/desktop-e2e-XQVZJO/result.json)), delivery **6 scenarios** ([`.local/delivery-e2e-z9keiZ`](../.local/delivery-e2e-z9keiZ/result.json)). `npm run test:update-mac` was not rerun. |
+
+### Limits of this record
+
+- The key press is synthesized through System Events, not a physical keyboard; Windows registration of a bare Escape is untested at runtime.
+- Esc is held only during a session; while it is held no other application receives Esc.
+
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.4.1-arm64.dmg) | Verified | 131,576,260 | `82d3e328b7b933fab587f182352c55cdedf562452c2b922899f9bb11b52a80e4` |
-| [Windows x64 portable ZIP](../release/Typeless-2.4.1-win.zip) | Integrity verified | 157,593,583 | `6413e6473381175ccbccca114bb6d4fc704b5afbef62e1d3eae7c60696e5ba8e` |
+| [macOS arm64 DMG](../release/Typeless-2.4.2-arm64.dmg) | Verified | 131,588,023 | `f38b30b8799a77741f24364fe9829391d98f99a0d686ca9eb948f89175c8e553` |
+| [Windows x64 portable ZIP](../release/Typeless-2.4.2-win.zip) | Integrity verified | 157,594,084 | `340ad3ff470f78f0c49ebc28ae36a03d9f4c51c9b1bba5cf057634540b482130` |
 
-The DMG passed `hdiutil verify` and read-only mounting; the unpacked application passed `codesign --verify --deep --strict`, reports version 2.4.1 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764` with the source build. The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify` and read-only mounting; the unpacked application passed `codesign --verify --deep --strict`, reports version 2.4.2 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764` with the source build. The image was ejected after the runtime checks.
 
 The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 
