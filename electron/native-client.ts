@@ -10,6 +10,7 @@ export class NativeError extends Error {
 
 export interface NativeContext {
   appName: string;
+  windowBounds?: { x: number; y: number; width: number; height: number };
 }
 export interface NativeStatus {
   platform: string;

@@ -14,7 +14,7 @@ There is no editor inspection, original-target capture, focus-epoch validation, 
 | --- | --- | --- |
 | `status` | `{}` | Platform, OS permission state, shortcut availability, and binding. No prompts. |
 | `configureShortcut` | `{binding:"fn"\|"right-alt"\|"disabled"}` | Binding and availability. Fn is macOS-only. |
-| `context` | `{}` | `{appName:string}` from the foreground process, with an empty name if unavailable. No AX/UIA dependency. Optional personalization context must never block recording. |
+| `context` | `{}` | `{appName:string, windowBounds?:{x,y,width,height}}` from the foreground process, with an empty name if unavailable. macOS adds `windowBounds`, the window-server bounds of that process's frontmost normal-layer window in global top-left-origin points, when one is on screen; Windows omits it. No AX/UIA dependency and no Screen Recording permission (only owner, layer and bounds are read). Optional context must never block recording. |
 | `pasteText` | `{text,clipboardOwner,requestId,deadlineMs}` | `{status:"dispatched"}` after shortcut events are posted. This does not prove the application accepted the paste. |
 | `cancelPaste` | `{requestId}` | Records cancellation independently of the dispatch queue and returns `{cancelled:true}`. Already-dispatched input cannot be recalled. |
 | `requestPermissions` | `{}` | Explicit macOS Accessibility/Input Monitoring prompt; Windows status only. Invoke only from a user permission action. |

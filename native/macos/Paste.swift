@@ -21,7 +21,22 @@ final class PasteRequests {
 
 func currentContext() -> [String: Any] {
     // Context labels never inspect an editor and do not require Accessibility.
-    return ["appName": NSWorkspace.shared.frontmostApplication?.localizedName ?? ""]
+    let app = NSWorkspace.shared.frontmostApplication
+    var result: [String: Any] = ["appName": app?.localizedName ?? ""]
+    if let pid = app?.processIdentifier, let bounds = frontWindowBounds(pid) { result["windowBounds"] = bounds }
+    return result
+}
+
+// Window-server bounds of the application's frontmost normal-layer window, in global
+// top-left-origin points. Owner, layer and bounds need no Screen Recording permission.
+func frontWindowBounds(_ pid: pid_t) -> [String: Double]? {
+    guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+    for window in windows where (window[kCGWindowOwnerPID as String] as? pid_t) == pid && (window[kCGWindowLayer as String] as? Int) == 0 {
+        guard let raw = window[kCGWindowBounds as String] as? NSDictionary, let rect = CGRect(dictionaryRepresentation: raw),
+              rect.width >= 50, rect.height >= 50 else { continue }
+        return ["x": Double(rect.minX), "y": Double(rect.minY), "width": Double(rect.width), "height": Double(rect.height)]
+    }
+    return nil
 }
 
 func pasteText(_ params: [String: Any]) throws -> [String: Any] {

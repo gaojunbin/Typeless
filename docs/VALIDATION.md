@@ -1,6 +1,6 @@
-# Version 2.4.0 Validation
+# Version 2.4.1 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -149,16 +149,35 @@ Requested after the in-place update landed: the maintainer chose a fixed self-si
 - Gatekeeper behaviour is unchanged: no Apple certificate, so the first browser download still warns.
 - The certificate exists only on the release machine; the repository cannot reproduce a signed release without it, and losing it means one manual install and one re-grant for users of the following release.
 
+## Capsule follows the foreground window's display (2026-10-02)
+
+Reported: with several macOS desktops the capsule stayed on one of them instead of the one holding the window being dictated into. On the development machine (two displays, eight Spaces) the existing panel already joined every Space: a real-build probe hid it, switched with Control+Right (and, separately, into another application's full-screen Space) and showed it again, and the window server listed it on the new active Space each time. The fixed placement came from the anchor, which used the display under the pointer. The helper's `context` now also returns the bounds of the foreground application's front window, and the capsule anchors to the display matching them, falling back to the pointer display.
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean; `npm run build` completed. |
+| Automated regressions | `npm test`: **127 tests in 14 files passed**. Two new cases in `tests/voice-overlay.test.ts` cover moving to the located display and ignoring a location from a replaced session. `native/bin/typeless-native --self-test` passed. |
+| Helper context | With a disposable Electron window at (-900, 300) on the left display in front, `context` returned `windowBounds` `{x:-900, y:300, width:500, height:400}`, identical to Electron's own bounds; with only Finder's desktop in front it omitted the field. |
+| Placement probe | Pointer warped to (960, 540) on the primary display, front window on the left portrait display, fallback chord pressed with no provider configured: the error capsule appeared at (-740, 1828), bottom centre of the left display. The same probe on the previous source put it at (760, 988) on the primary display. Temporary probe scripts were deleted. |
+| Development desktop integration | `npm run test:desktop`: **42 checks passed**, receipt [`.local/desktop-e2e-959Qoj/result.json`](../.local/desktop-e2e-959Qoj/result.json). |
+| Development delivery | `npm run test:delivery`: **5 scenarios passed**, clipboard restored, receipt [`.local/delivery-e2e-8liK7H/result.json`](../.local/delivery-e2e-8liK7H/result.json). |
+| 2.4.1 packages | `npm run package:mac` signed with `Typeless Project` and `npm run package:win` built the ledger artifacts below. The bundled helper has UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764`, the same as the source build. From the read-only mounted 2.4.1 DMG: desktop **42 checks** ([`.local/desktop-e2e-kJ1RUE`](../.local/desktop-e2e-kJ1RUE/result.json)), delivery **5 scenarios** ([`.local/delivery-e2e-oTQ0nX`](../.local/delivery-e2e-oTQ0nX/result.json)). `npm run test:update-mac` was not rerun. |
+
+### Limits of this record
+
+- The placement probe ran on the development build only; the packaged runs cover the existing suites, which do not check placement. No physical Fn press and no second machine. Windows keeps the pointer-display placement (its helper returns no bounds).
+- The Spaces observation covers this machine and macOS version; it does not rule out a different Spaces setup on the reporting machine.
+
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.4.0-arm64.dmg) | Verified | 131,585,107 | `7b5a3c7e605abd6ac3e1db50c9c9722884b0a143318ede713d5fc84a3afcc548` |
-| [Windows x64 portable ZIP](../release/Typeless-2.4.0-win.zip) | Integrity verified | 157,590,853 | `51d898a09f2ca028d42c81d3c02e82cca66f44c3d2a8fc5df916415e924dc20a` |
+| [macOS arm64 DMG](../release/Typeless-2.4.1-arm64.dmg) | Verified | 131,576,260 | `82d3e328b7b933fab587f182352c55cdedf562452c2b922899f9bb11b52a80e4` |
+| [Windows x64 portable ZIP](../release/Typeless-2.4.1-win.zip) | Integrity verified | 157,593,583 | `6413e6473381175ccbccca114bb6d4fc704b5afbef62e1d3eae7c60696e5ba8e` |
 
-The DMG passed `hdiutil verify`, read-only mounting and `codesign --verify --deep --strict` on both the unpacked and the mounted application. Its Applications link targets `/Applications`, its bundle reports version 2.4.0 and a minimum macOS of 13.0, its signature reports `Authority=Typeless Project` with the designated requirement `identifier "dev.typeless.desktop" and certificate leaf = H"2e57c7f2…"`, and its `app.asar` is byte-identical between the unpacked and mounted copies. The bundled native helper shares UUID `20692AF1-EF68-3EC3-A489-D68F00254486` with the source build (unchanged since 2.1.1). The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify` and read-only mounting; the unpacked application passed `codesign --verify --deep --strict`, reports version 2.4.1 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764` with the source build. The image was ejected after the runtime checks.
 
-The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file, and `resources/app.asar` is byte-identical to the macOS bundle's. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
+The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 
 ## Reproduce
 

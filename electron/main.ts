@@ -86,6 +86,11 @@ function trusted(contents: Electron.WebContents, url: string) {
   if (![mainWindow?.webContents.id, overlay?.webContents.id].includes(contents.id)) return false;
   return devUrl ? new URL(url).origin === pageUrl : url.split('#')[0] === pageUrl;
 }
+// The display holding the foreground application's front window; undefined falls back to the cursor display.
+async function focusedWorkArea() {
+  const bounds = (await native.context()).windowBounds;
+  return bounds ? screen.getDisplayMatching(bounds).workArea : undefined;
+}
 function showMain() { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } }
 function windowOptions(): Electron.BrowserWindowConstructorOptions {
   return { backgroundColor: '#ffffff', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, backgroundThrottling: false, spellcheck: false } };
@@ -213,7 +218,7 @@ else {
     mainWindow = new BrowserWindow({ ...windowOptions(), width: 1000, height: 750, minWidth: 880, minHeight: 600, show: false, title: 'Typeless', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 18, y: 18 } } : {}) });
     overlay = new BrowserWindow({ ...windowOptions(), ...voiceWindowSize, frame: false, transparent: true, backgroundColor: '#00000000', focusable: false, show: false, resizable: false, movable: false, minimizable: false, maximizable: false, hasShadow: false, skipTaskbar: true, alwaysOnTop: true, ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}) });
     overlay.setAlwaysOnTop(true, 'floating'); overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    voiceOverlay = new VoiceOverlay(overlay, () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea);
+    voiceOverlay = new VoiceOverlay(overlay, () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea, focusedWorkArea);
     overlay.webContents.on('context-menu', () => {
       const active = ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status);
       Menu.buildFromTemplate([

@@ -19,17 +19,20 @@ export function overlayBounds(area: Rectangle, recovery: boolean): Rectangle {
 export class VoiceOverlay {
   private sessionId = '';
   private anchor?: Rectangle;
+  private shownRecovery?: boolean;
   private recoveryKey = '';
   private dismissedKey = '';
   private timer?: ReturnType<typeof setTimeout>;
 
-  constructor(private window: OverlayWindow, private workArea: () => Rectangle) {}
+  // workArea is the immediate fallback; locate may later refine the anchor for the session.
+  constructor(private window: OverlayWindow, private workArea: () => Rectangle, private locate: () => Promise<Rectangle | undefined> = async () => undefined) {}
 
   publish(session: DictationSession) {
     if (this.window.isDestroyed()) return;
     if (this.sessionId !== session.id) {
       this.sessionId = session.id; this.anchor = this.workArea();
       this.recoveryKey = ''; this.dismissedKey = ''; clearTimeout(this.timer);
+      if (session.id) this.relocate(session.id);
     }
     const active = ['recording', 'transcribing', 'polishing', 'inserting'].includes(session.status);
     const recovery = session.status === 'error' || (session.status === 'ready' && !session.copied && Boolean(session.text));
@@ -46,8 +49,16 @@ export class VoiceOverlay {
     }
     this.anchor ??= this.workArea();
     this.window.setBounds(overlayBounds(this.anchor, recovery), false);
-    this.window.showInactive();
+    this.window.showInactive(); this.shownRecovery = recovery;
   }
 
-  hide() { clearTimeout(this.timer); if (!this.window.isDestroyed()) this.window.hide(); }
+  hide() { clearTimeout(this.timer); this.shownRecovery = undefined; if (!this.window.isDestroyed()) this.window.hide(); }
+
+  private relocate(id: string) {
+    this.locate().then(area => {
+      if (!area || this.sessionId !== id || this.window.isDestroyed()) return;
+      this.anchor = area;
+      if (this.shownRecovery !== undefined) this.window.setBounds(overlayBounds(area, this.shownRecovery), false);
+    }, () => {});
+  }
 }
