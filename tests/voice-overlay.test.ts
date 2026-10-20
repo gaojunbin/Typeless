@@ -2,11 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VoiceOverlay, overlayBounds } from '../electron/voice-overlay';
 import { idleSession } from '../src/core/session';
 
+function fakeWindow() {
+  return { setBounds: vi.fn(), showInactive: vi.fn(), hide: vi.fn(), isDestroyed: () => false, destroy: vi.fn() };
+}
 function fixture() {
-  const window = { setBounds: vi.fn(), showInactive: vi.fn(), hide: vi.fn(), isDestroyed: () => false };
+  const window = fakeWindow();
   const workArea = vi.fn(() => ({ x: 0, y: 0, width: 1440, height: 900 }));
   return { window, workArea, overlay: new VoiceOverlay(window, workArea) };
 }
+const area = () => ({ x: 0, y: 0, width: 1440, height: 900 });
+const recording = (id = 'speech') => ({ ...idleSession(), id, status: 'recording' as const });
+const copied = (id = 'speech') => ({ ...idleSession(), id, status: 'ready' as const, text: 'Copied result', copied: true, delivery: 'copied' as const });
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 afterEach(() => vi.useRealTimers());
 
 describe('floating dictation feedback', () => {
@@ -33,7 +40,7 @@ describe('floating dictation feedback', () => {
   });
 
   it('moves to the display of the foreground window once it is located', async () => {
-    const window = { setBounds: vi.fn(), showInactive: vi.fn(), hide: vi.fn(), isDestroyed: () => false };
+    const window = fakeWindow();
     let resolve!: (area: { x: number; y: number; width: number; height: number }) => void;
     const overlay = new VoiceOverlay(window, () => ({ x: 0, y: 0, width: 1440, height: 900 }), () => new Promise(done => { resolve = done; }));
     const session = { ...idleSession(), id: 'speech' };
@@ -50,7 +57,7 @@ describe('floating dictation feedback', () => {
   });
 
   it('ignores a located display that arrives after its session was replaced', async () => {
-    const window = { setBounds: vi.fn(), showInactive: vi.fn(), hide: vi.fn(), isDestroyed: () => false };
+    const window = fakeWindow();
     const pending: Array<(area: { x: number; y: number; width: number; height: number }) => void> = [];
     const overlay = new VoiceOverlay(window, () => ({ x: 0, y: 0, width: 1440, height: 900 }), () => new Promise(done => { pending.push(done); }));
     overlay.publish({ ...idleSession(), id: 'first', status: 'recording' });
@@ -83,5 +90,84 @@ describe('floating dictation feedback', () => {
     overlay.publish({ ...idleSession(), id: 'speech', status: 'ready', text: 'Copied result', copied: true, delivery: 'copied' });
     expect(window.showInactive).not.toHaveBeenCalled();
     expect(window.hide).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('capsule window renewal after Space or display changes', () => {
+  function renewing() {
+    const first = fakeWindow();
+    const fresh = [fakeWindow(), fakeWindow()];
+    const create = vi.fn(async () => fresh[create.mock.calls.length - 1]);
+    return { first, fresh, create, overlay: new VoiceOverlay(first, area, undefined, create) };
+  }
+
+  it('keeps a window that has never been shown', async () => {
+    const { first, create, overlay } = renewing();
+    overlay.invalidate();
+    await flush();
+    expect(create).not.toHaveBeenCalled();
+    expect(overlay.window).toBe(first);
+  });
+
+  it('replaces a shown window while it is hidden and shows the fresh one next time', async () => {
+    const { first, fresh, create, overlay } = renewing();
+    overlay.publish(recording()); overlay.publish(copied());
+    overlay.invalidate();
+    await flush();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(overlay.window).toBe(fresh[0]);
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+    overlay.publish(recording('next'));
+    expect(fresh[0].showInactive).toHaveBeenCalledTimes(1);
+    expect(first.showInactive).toHaveBeenCalledTimes(1);
+    overlay.invalidate();
+    await flush();
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a visible session to end before replacing its window', async () => {
+    const { first, fresh, create, overlay } = renewing();
+    overlay.publish(recording());
+    overlay.invalidate();
+    await flush();
+    expect(create).not.toHaveBeenCalled();
+    overlay.publish(copied());
+    await flush();
+    expect(overlay.window).toBe(fresh[0]);
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a replacement that finishes after a session took the current window', async () => {
+    const first = fakeWindow(); const late = fakeWindow(); const later = fakeWindow();
+    let finish!: (window: typeof late) => void;
+    const create = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+      .mockImplementationOnce(async () => later);
+    const overlay = new VoiceOverlay(first, area, undefined, create);
+    overlay.publish(recording()); overlay.publish(copied());
+    overlay.invalidate();
+    overlay.publish(recording('next'));
+    finish(late);
+    await flush();
+    expect(late.destroy).toHaveBeenCalledTimes(1);
+    expect(overlay.window).toBe(first);
+    overlay.publish(copied('next'));
+    await flush();
+    expect(overlay.window).toBe(later);
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the shown window when a replacement cannot be created', async () => {
+    const first = fakeWindow();
+    const create = vi.fn(async () => { throw new Error('load failed'); });
+    const overlay = new VoiceOverlay(first, area, undefined, create);
+    overlay.publish(recording()); overlay.publish(copied());
+    overlay.invalidate();
+    await flush();
+    overlay.publish(copied());
+    await flush();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(overlay.window).toBe(first);
+    expect(first.destroy).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,12 @@
 import type { DictationSession } from '../src/shared/contracts';
 
 export interface Rectangle { x: number; y: number; width: number; height: number }
-interface OverlayWindow {
+export interface OverlayWindow {
   setBounds(bounds: Rectangle, animate?: boolean): void;
   showInactive(): void;
   hide(): void;
   isDestroyed(): boolean;
+  destroy(): void;
 }
 
 export const voiceWindowSize = { width: 240, height: 76 };
@@ -16,19 +17,25 @@ export function overlayBounds(area: Rectangle, recovery: boolean): Rectangle {
   return { ...size, x: Math.round(area.x + (area.width - size.width) / 2), y: Math.round(area.y + area.height - size.height - 16) };
 }
 
-export class VoiceOverlay {
+export class VoiceOverlay<W extends OverlayWindow = OverlayWindow> {
   private sessionId = '';
   private anchor?: Rectangle;
   private shownRecovery?: boolean;
+  private shownSinceCreated = false;
+  private stale = false;
+  private renewing = false;
   private recoveryKey = '';
   private dismissedKey = '';
   private timer?: ReturnType<typeof setTimeout>;
 
   // workArea is the immediate fallback; locate may later refine the anchor for the session.
-  constructor(private window: OverlayWindow, private workArea: () => Rectangle, private locate: () => Promise<Rectangle | undefined> = async () => undefined) {}
+  // create builds a fresh hidden window for invalidate(); without it the window is never replaced.
+  constructor(private current: W, private workArea: () => Rectangle, private locate: () => Promise<Rectangle | undefined> = async () => undefined, private create?: () => Promise<W>) {}
+
+  get window(): W { return this.current; }
 
   publish(session: DictationSession) {
-    if (this.window.isDestroyed()) return;
+    if (this.current.isDestroyed()) return;
     if (this.sessionId !== session.id) {
       this.sessionId = session.id; this.anchor = this.workArea();
       this.recoveryKey = ''; this.dismissedKey = ''; clearTimeout(this.timer);
@@ -48,17 +55,44 @@ export class VoiceOverlay {
       clearTimeout(this.timer); this.recoveryKey = '';
     }
     this.anchor ??= this.workArea();
-    this.window.setBounds(overlayBounds(this.anchor, recovery), false);
-    this.window.showInactive(); this.shownRecovery = recovery;
+    this.current.setBounds(overlayBounds(this.anchor, recovery), false);
+    this.current.showInactive(); this.shownRecovery = recovery; this.shownSinceCreated = true;
   }
 
-  hide() { clearTimeout(this.timer); this.shownRecovery = undefined; if (!this.window.isDestroyed()) this.window.hide(); }
+  hide() {
+    clearTimeout(this.timer); this.shownRecovery = undefined;
+    if (!this.current.isDestroyed()) this.current.hide();
+    if (this.stale) void this.renew();
+  }
+
+  // macOS keeps the Space assignment of a shown window while it is hidden and can pin it to a single Space, so
+  // after the active Space or the displays change, a window that has been shown is replaced by one that never was.
+  invalidate() {
+    if (!this.create || !this.shownSinceCreated) return;
+    this.stale = true;
+    if (this.shownRecovery === undefined) void this.renew();
+  }
+
+  private async renew() {
+    if (this.renewing || !this.create) return;
+    this.renewing = true;
+    try {
+      const next = await this.create();
+      // A session took the current window meanwhile; it is replaced once that session hides.
+      if (this.shownRecovery !== undefined) { next.destroy(); return; }
+      const previous = this.current;
+      this.current = next; this.shownSinceCreated = false; this.stale = false;
+      if (!previous.isDestroyed()) previous.destroy();
+    } catch {
+      this.stale = false; // The shown window stays in use until the next change.
+    } finally { this.renewing = false; }
+  }
 
   private relocate(id: string) {
     this.locate().then(area => {
-      if (!area || this.sessionId !== id || this.window.isDestroyed()) return;
+      if (!area || this.sessionId !== id || this.current.isDestroyed()) return;
       this.anchor = area;
-      if (this.shownRecovery !== undefined) this.window.setBounds(overlayBounds(area, this.shownRecovery), false);
+      if (this.shownRecovery !== undefined) this.current.setBounds(overlayBounds(area, this.shownRecovery), false);
     }, () => {});
   }
 }

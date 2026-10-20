@@ -1,6 +1,6 @@
-# Version 2.4.2 Validation
+# Version 2.4.3 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) and then the 2.4.2 packages (Esc cancels dictation) were verified. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) and then the 2.4.2 packages (Esc cancels dictation) were verified; on 2026-10-21 the 2.4.3 packages (capsule window replaced after desktop or display changes) were. The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -184,14 +184,39 @@ Requested: Esc as the keyboard equivalent of the capsule's cancel control. `elec
 - The key press is synthesized through System Events, not a physical keyboard; Windows registration of a bare Escape is untested at runtime.
 - Esc is held only during a session; while it is held no other application receives Esc.
 
+## Capsule window replaced after desktop or display changes (2.4.3, 2026-10-21)
+
+Reported from another Mac running 2.4.2: with several desktops on one display, dictation started on desktop 1 showed the capsule on a different desktop. It did not reproduce on the development machine (macOS 27.0, two displays, desktops 1 and 2 on the main one), where the window server lists the hidden capsule on every Space of its display. Two other Electron dictation apps report the same intermittent symptom: OpenWhispr's WindowServer log shows a hidden panel's Space list rewritten to one Space after a display change while Electron still reported `isVisibleOnAllWorkspaces() === true` ([OpenWhispr PR #2470](https://github.com/OpenWhispr/openwhispr/pull/2470)), and earheart sees the overlay missing after moving to another desktop on macOS 26.6.2 ([earheart PR #164](https://github.com/cleanunicorn/earheart/pull/164)). Two facts were checked here with `CGSCopySpacesForWindows`:
+
+- For a `type: 'panel'` window, `setVisibleOnAllWorkspaces(false)` changes nothing (the Space list stays `[7, 1]` and the getter stays `true`); a plain window drops to one Space and rejoins with `true`. Electron therefore has no call that makes a pinned panel rejoin all Spaces, so re-asserting it before each show, as earheart does, would not help this app.
+- A window that has never been shown has an empty Space list. After its first show it belongs to every Space of its display and keeps that list while hidden.
+
+The change: on macOS, `NSWorkspaceActiveSpaceDidChangeNotification` and the `screen` display events call `VoiceOverlay.invalidate()`, which replaces a window that has been shown with a fresh hidden one, at once while hidden and after the session otherwise. Every show after a desktop or display change therefore starts from a window without a Space assignment.
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean; `npm run build` completed. `ccg verify-change` and `verify-quality` (on `electron/`) reported no findings. |
+| Automated regressions | `npm test`: **136 tests in 15 files passed**. Five new cases in `tests/voice-overlay.test.ts` cover keeping a never-shown window, replacing a shown one while hidden, waiting for a visible session to end, discarding a replacement that finishes after a session took the window, and a replacement that cannot be created. `native/bin/typeless-native --self-test` passed. |
+| Desktop probe | Isolated profile, error capsule triggered through the renderer bridge while a separately bundled target window was in front, Space lists read from the window server. Two dictations on desktop 1 reused one window. Swiping to desktop 2 replaced it with a never-shown window (empty Space list), and the next capsule was on screen on desktop 2 with its renderer answering `getSnapshot`; the same held on the way back. Swiping while a capsule was visible kept that window on screen, and it was replaced after it hid. One capsule window existed at every step. The same sequence gave the same result with the packaged, signed 2.4.3 application. |
+| Not reproduced | Moving the secondary display's origin and back with `CGConfigureDisplayOrigin` did not pin the hidden panel here, and neither did an `app-bindings` entry assigning the development application to desktop 2. The trigger on the reporting Mac is unknown. |
+| Development desktop integration | `npm run test:desktop`: **42 checks passed** ([`.local/desktop-e2e-GdQUQj`](../.local/desktop-e2e-GdQUQj/result.json)). |
+| Development delivery | `npm run test:delivery`: **6 scenarios passed** ([`.local/delivery-e2e-I5Mu7i`](../.local/delivery-e2e-I5Mu7i/result.json)). |
+| 2.4.3 packages | `npm run package:mac` signed with `Typeless Project` (same designated requirement as 2.4.0) and `npm run package:win` built the ledger artifacts below. From the read-only mounted 2.4.3 DMG: desktop **42 checks** ([`.local/desktop-e2e-p7z7L6`](../.local/desktop-e2e-p7z7L6/result.json)); the first delivery run stopped in the Esc stage with `spawnSync osascript ETIMEDOUT` (the System Events key press exceeded its 5 s limit) ([`.local/delivery-e2e-2TL3CU`](../.local/delivery-e2e-2TL3CU/result.json)), and the rerun passed **6 scenarios** ([`.local/delivery-e2e-XzCuO0`](../.local/delivery-e2e-XzCuO0/result.json)). `npm run test:update-mac` was not rerun. |
+
+### Limits of this record
+
+- The change is verified against its mechanism, not against a naturally pinned capsule: no pinned state occurred on this machine. Whether it removes the symptom on the reporting Mac has to be observed there.
+- A capsule that is visible while the desktop changes is replaced only after it hides; if macOS pinned it during that session, it stays on the old desktop until then.
+- `CGSCopySpacesForWindows` is a private API used only by the temporary probes; the application uses public APIs.
+
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.4.2-arm64.dmg) | Verified | 131,588,023 | `f38b30b8799a77741f24364fe9829391d98f99a0d686ca9eb948f89175c8e553` |
-| [Windows x64 portable ZIP](../release/Typeless-2.4.2-win.zip) | Integrity verified | 157,594,084 | `340ad3ff470f78f0c49ebc28ae36a03d9f4c51c9b1bba5cf057634540b482130` |
+| [macOS arm64 DMG](../release/Typeless-2.4.3-arm64.dmg) | Verified | 131,608,378 | `c92cabbe6277bd854a31ad5e7c30264ff867224b9cb88426d76971a830a03173` |
+| [Windows x64 portable ZIP](../release/Typeless-2.4.3-win.zip) | Integrity verified | 157,595,676 | `f1ead80564758c9ca18fc47f866708d1aa7df8fd650895646df496afb16bbd53` |
 
-The DMG passed `hdiutil verify` and read-only mounting; the unpacked application passed `codesign --verify --deep --strict`, reports version 2.4.2 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764` with the source build. The image was ejected after the runtime checks.
+The DMG passed `hdiutil verify` and read-only mounting; the unpacked and the mounted application passed `codesign --verify --deep --strict`, the unpacked one reports version 2.4.3 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B9C7F77C-9533-32B3-8A90-B8C405CD0764` with the source build. The image was ejected after the runtime checks.
 
 The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
 

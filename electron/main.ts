@@ -22,8 +22,8 @@ app.setAppLogsPath(join(dataRoot, 'logs'));
 app.commandLine.appendSwitch('disable-breakpad');
 app.commandLine.appendSwitch('disable-component-update');
 let mainWindow: BrowserWindow;
-let overlay: BrowserWindow;
-let voiceOverlay: VoiceOverlay;
+let voiceOverlay: VoiceOverlay<BrowserWindow>;
+const overlayContents = new Set<number>();
 let tray: Tray;
 const menuCopy = {
   zh: { open: '打开 Typeless', toggle: '开始 / 停止听写', cancel: '取消听写', quit: '退出' },
@@ -75,6 +75,7 @@ function shortcutPressed() {
   void controller.dispatch({ type: 'dictation.toggle' }).then(reportShortcutError);
 }
 function reportShortcutError(result: { ok: boolean; message?: string }) {
+  const overlay = voiceOverlay?.window;
   if (quitting || !overlay || overlay.isDestroyed()) return;
   if (!result.ok) {
     if (['transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status)) return;
@@ -85,7 +86,7 @@ function reportShortcutError(result: { ok: boolean; message?: string }) {
   }
 }
 function trusted(contents: Electron.WebContents, url: string) {
-  if (![mainWindow?.webContents.id, overlay?.webContents.id].includes(contents.id)) return false;
+  if (contents.id !== mainWindow?.webContents.id && !overlayContents.has(contents.id)) return false;
   return devUrl ? new URL(url).origin === pageUrl : url.split('#')[0] === pageUrl;
 }
 // The display holding the foreground application's front window; undefined falls back to the cursor display.
@@ -105,6 +106,29 @@ function secureWindow(window: BrowserWindow) {
 async function load(window: BrowserWindow, hash: string) {
   if (devUrl) await window.loadURL(`${devUrl.replace(/\/$/, '')}/#${hash}`);
   else await window.loadFile(join(app.getAppPath(), 'dist', 'index.html'), { hash });
+}
+// Every capsule window, including one still loading to replace the current one, is a trusted IPC sender.
+function createOverlay(transformProcess: boolean) {
+  const window = new BrowserWindow({ ...windowOptions(), ...voiceWindowSize, frame: false, transparent: true, backgroundColor: '#00000000', focusable: false, show: false, resizable: false, movable: false, minimizable: false, maximizable: false, hasShadow: false, skipTaskbar: true, alwaysOnTop: true, ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}) });
+  // Only the first window turns the process into an agent application; repeating that transform flashes the Dock.
+  window.setAlwaysOnTop(true, 'floating'); window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: !transformProcess });
+  const id = window.webContents.id;
+  overlayContents.add(id); window.webContents.once('destroyed', () => overlayContents.delete(id));
+  window.webContents.on('context-menu', () => {
+    const active = ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status);
+    Menu.buildFromTemplate([
+      ...(active ? [{ label: menuLabels().cancel, click: () => { void controller.dispatch({ type: 'dictation.cancel' }); } }] : []),
+      { label: menuLabels().open, click: showMain },
+    ]).popup({ window });
+  });
+  secureWindow(window);
+  return window;
+}
+async function renewOverlay() {
+  if (quitting) throw new Error('Typeless is quitting.');
+  const window = createOverlay(false);
+  try { await load(window, 'overlay'); return window; }
+  catch (error) { window.destroy(); throw error; }
 }
 async function permissions(request?: 'microphone' | 'accessibility'): Promise<Permissions> {
   if (request === 'microphone' && process.platform === 'darwin') await systemPreferences.askForMediaAccess('microphone');
@@ -219,17 +243,8 @@ else {
       encrypt: value => safeStorage.encryptString(value).toString('base64'), decrypt: value => safeStorage.decryptString(Buffer.from(value, 'base64')),
     });
     mainWindow = new BrowserWindow({ ...windowOptions(), width: 1000, height: 750, minWidth: 880, minHeight: 600, show: false, title: 'Typeless', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 18, y: 18 } } : {}) });
-    overlay = new BrowserWindow({ ...windowOptions(), ...voiceWindowSize, frame: false, transparent: true, backgroundColor: '#00000000', focusable: false, show: false, resizable: false, movable: false, minimizable: false, maximizable: false, hasShadow: false, skipTaskbar: true, alwaysOnTop: true, ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}) });
-    overlay.setAlwaysOnTop(true, 'floating'); overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    voiceOverlay = new VoiceOverlay(overlay, () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea, focusedWorkArea);
-    overlay.webContents.on('context-menu', () => {
-      const active = ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(controller.sessions.session.status);
-      Menu.buildFromTemplate([
-        ...(active ? [{ label: menuLabels().cancel, click: () => { void controller.dispatch({ type: 'dictation.cancel' }); } }] : []),
-        { label: menuLabels().open, click: showMain },
-      ]).popup({ window: overlay });
-    });
-    secureWindow(mainWindow); secureWindow(overlay);
+    voiceOverlay = new VoiceOverlay(createOverlay(true), () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea, focusedWorkArea, process.platform === 'darwin' ? renewOverlay : undefined);
+    secureWindow(mainWindow);
     const ses = session.defaultSession;
     const connect = devUrl ? `${new URL(devUrl).origin} ${new URL(devUrl).origin.replace(/^http/, 'ws')}` : "'none'";
     const csp = `default-src 'none'; script-src 'self'${devUrl ? " 'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src ${connect}; worker-src 'self' blob:; frame-src 'none'; base-uri 'none'; form-action 'none'`;
@@ -249,7 +264,8 @@ else {
       capture: command => { if (!quitting && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('typeless:capture', command); },
       paste: (text, signal) => delivery.paste(text, signal),
       publish: snapshot => {
-        if (quitting || !mainWindow || mainWindow.isDestroyed() || !overlay || overlay.isDestroyed()) return;
+        const overlay = voiceOverlay.window;
+        if (quitting || !mainWindow || mainWindow.isDestroyed() || overlay.isDestroyed()) return;
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
         escapeCancel.sync(snapshot.session.status);
@@ -303,7 +319,7 @@ else {
     tray = new Tray(icon); tray.setToolTip('Typeless');
     refreshTrayMenu();
     tray.on('click', showMain);
-    await Promise.all([load(mainWindow, 'default'), load(overlay, 'overlay')]);
+    await Promise.all([load(mainWindow, 'default'), load(voiceOverlay.window, 'overlay')]);
     showMain();
     try { await native.start(); nativeAvailable = true; } catch { nativeAvailable = false; }
     await configureSettings();
@@ -317,6 +333,11 @@ else {
     powerMonitor.on('suspend', cancelForSystem);
     powerMonitor.on('resume', () => { void refreshShortcutHealth(); });
     powerMonitor.on('unlock-screen', () => { void refreshShortcutHealth(); });
+    if (process.platform === 'darwin') {
+      const invalidateOverlay = () => voiceOverlay.invalidate();
+      systemPreferences.subscribeWorkspaceNotification('NSWorkspaceActiveSpaceDidChangeNotification', invalidateOverlay);
+      screen.on('display-added', invalidateOverlay); screen.on('display-removed', invalidateOverlay); screen.on('display-metrics-changed', invalidateOverlay);
+    }
     shortcutHealthTimer = setInterval(() => { void refreshShortcutHealth(); }, 2000);
     shortcutHealthTimer.unref();
   }).catch(error => { console.error('Typeless initialization failed:', error instanceof Error ? error.stack : 'Unknown initialization error'); dialog.showErrorBox('Typeless', 'The app could not initialize. Check the local data directory and build outputs.'); app.quit(); });
