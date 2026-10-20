@@ -202,10 +202,11 @@ The change: on macOS, `NSWorkspaceActiveSpaceDidChangeNotification` and the `scr
 | Development desktop integration | `npm run test:desktop`: **42 checks passed** ([`.local/desktop-e2e-GdQUQj`](../.local/desktop-e2e-GdQUQj/result.json)). |
 | Development delivery | `npm run test:delivery`: **6 scenarios passed** ([`.local/delivery-e2e-I5Mu7i`](../.local/delivery-e2e-I5Mu7i/result.json)). |
 | 2.4.3 packages | `npm run package:mac` signed with `Typeless Project` (same designated requirement as 2.4.0) and `npm run package:win` built the ledger artifacts below. From the read-only mounted 2.4.3 DMG: desktop **42 checks** ([`.local/desktop-e2e-p7z7L6`](../.local/desktop-e2e-p7z7L6/result.json)); the first delivery run stopped in the Esc stage with `spawnSync osascript ETIMEDOUT` (the System Events key press exceeded its 5 s limit) ([`.local/delivery-e2e-2TL3CU`](../.local/delivery-e2e-2TL3CU/result.json)), and the rerun passed **6 scenarios** ([`.local/delivery-e2e-XzCuO0`](../.local/delivery-e2e-XzCuO0/result.json)). `npm run test:update-mac` was not rerun. |
+| Field report | On 2026-10-21, after the reporting Mac was updated to 2.4.3, the user reported that the problem "seems resolved". This is the user's observation over a short period, not an instrumented check. |
 
 ### Limits of this record
 
-- The change is verified against its mechanism, not against a naturally pinned capsule: no pinned state occurred on this machine. Whether it removes the symptom on the reporting Mac has to be observed there.
+- The change is verified against its mechanism, not against a naturally pinned capsule: no pinned state occurred on this machine. The only evidence from the reporting Mac is the short field report above.
 - A capsule that is visible while the desktop changes is replaced only after it hides; if macOS pinned it during that session, it stays on the old desktop until then.
 - `CGSCopySpacesForWindows` is a private API used only by the temporary probes; the application uses public APIs.
 
