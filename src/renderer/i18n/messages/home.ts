@@ -1,6 +1,6 @@
 import { defineMessages } from './define';
 
-/** 首页, the dictation card, the session status labels and the voice capsule. */
+/** 首页, the dictation card with its correction form, the session status labels and the voice capsule. */
 export const home = defineMessages({
   zh: {
     'home.title': '说话，不打字',
@@ -32,6 +32,13 @@ export const home = defineMessages({
     'home.dictation.raw': '原文',
     'home.dictation.thisSession': '本次听写',
     'home.dictation.copy': '复制本次听写',
+    'home.correction.open': '纠错',
+    'home.correction.heard': '识别成',
+    'home.correction.term': '应为',
+    'home.correction.submit': '加入词库',
+    'home.correction.cancel': '取消',
+    'home.correction.added': '已加入词库',
+    'home.correction.failed': '没有保存，请检查内容后重试。',
     'home.session.idle': '准备就绪',
     'home.session.arming': '正在连接麦克风',
     'home.session.recording': '正在录音',
@@ -76,6 +83,13 @@ export const home = defineMessages({
     'home.dictation.raw': 'Original',
     'home.dictation.thisSession': 'This dictation',
     'home.dictation.copy': 'Copy this dictation',
+    'home.correction.open': 'Correct',
+    'home.correction.heard': 'Heard as',
+    'home.correction.term': 'Should be',
+    'home.correction.submit': 'Add to vocabulary',
+    'home.correction.cancel': 'Cancel',
+    'home.correction.added': 'Added to vocabulary',
+    'home.correction.failed': 'Not saved. Check the entry and try again.',
     'home.session.idle': 'Ready',
     'home.session.arming': 'Connecting to the microphone',
     'home.session.recording': 'Recording',

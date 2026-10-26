@@ -7,10 +7,11 @@ export interface SettingsSectionProps {
   run: RunAction;
 }
 
-/** The three destinations in sidebar order; labels resolve through `useI18n()`. */
-export const pages: readonly { id: 'home' | 'ai' | 'basic'; labelKey: MessageKey }[] = [
+/** The four destinations in sidebar order; labels resolve through `useI18n()`. */
+export const pages: readonly { id: 'home' | 'ai' | 'vocabulary' | 'basic'; labelKey: MessageKey }[] = [
   { id: 'home', labelKey: 'common.page.home' },
   { id: 'ai', labelKey: 'common.page.ai' },
+  { id: 'vocabulary', labelKey: 'common.page.vocabulary' },
   { id: 'basic', labelKey: 'common.page.basic' },
 ];
 export type Page = typeof pages[number]['id'];

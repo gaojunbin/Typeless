@@ -30,7 +30,7 @@ export class Controller {
     this.update = { status: 'idle', currentVersion: version };
     this.sessions = new Sessions(store, providers, { ...host, changed: () => this.publish() });
   }
-  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions, update: this.update }; }
+  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions, update: this.update, vocabulary: this.store.vocabulary() }; }
   /** Main owns the release check; it pushes each transition here so every window sees it. */
   setUpdate(update: UpdateState) { this.update = update; this.publish(); }
   publish() { this.host.publish(this.snapshot()); }
@@ -62,6 +62,11 @@ export class Controller {
         case 'dictation.copy':
           if (action.source !== undefined && !['result', 'raw'].includes(action.source)) throw new Error('Invalid copy source.');
           await this.sessions.copy(action.source); break;
+        case 'dictation.correct':
+          if (typeof action.heard !== 'string' || typeof action.term !== 'string' || (action.start !== undefined && (!Number.isInteger(action.start) || action.start < 0))) throw new Error('Invalid correction.');
+          this.sessions.correct(action.heard, action.term, action.start); break;
+        case 'vocabulary.save': this.store.saveVocabulary(action.entry); break;
+        case 'vocabulary.delete': this.store.deleteVocabulary(action.id); break;
         case 'permissions.refresh': await this.refreshPermissions(); break;
         case 'permissions.request': if (!['microphone', 'accessibility'].includes(action.permission)) throw new Error('Invalid permission.'); await this.refreshPermissions(action.permission); break;
         case 'permissions.open': if (!['microphone', 'accessibility', 'inputMonitoring'].includes(action.pane)) throw new Error('Invalid pane.'); this.host.openPane(action.pane); break;

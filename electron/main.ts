@@ -201,6 +201,7 @@ function diagnosticsReport(): string {
     `general: ${JSON.stringify(snapshot.settings.general)}`,
     `audio.deviceId: ${snapshot.settings.audio.deviceId}`,
     `output mute: ${JSON.stringify(outputMute.last)}`,
+    `vocabulary: ${snapshot.vocabulary.length} words`,
     `permissions: ${JSON.stringify(snapshot.permissions)}`,
     `native status history (${statusHistory.length}):`,
     ...statusHistory.map(item => JSON.stringify(item)),

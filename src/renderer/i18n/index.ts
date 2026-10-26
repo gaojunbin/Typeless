@@ -5,6 +5,7 @@ import { home } from './messages/home';
 import { session } from './messages/session';
 import { settings } from './messages/settings';
 import { onboarding } from './messages/onboarding';
+import { vocabulary } from './messages/vocabulary';
 
 /**
  * Interface copy lives in `messages/*.ts`, one file per area, each holding the Chinese and the
@@ -12,8 +13,8 @@ import { onboarding } from './messages/onboarding';
  * React context call `translate()` with the language from the snapshot.
  */
 
-const zh = { ...common.zh, ...home.zh, ...session.zh, ...settings.zh, ...onboarding.zh };
-const en = { ...common.en, ...home.en, ...session.en, ...settings.en, ...onboarding.en };
+const zh = { ...common.zh, ...home.zh, ...session.zh, ...settings.zh, ...onboarding.zh, ...vocabulary.zh };
+const en = { ...common.en, ...home.en, ...session.en, ...settings.en, ...onboarding.en, ...vocabulary.en };
 
 export type MessageKey = keyof typeof zh;
 export type Params = Record<string, string | number>;

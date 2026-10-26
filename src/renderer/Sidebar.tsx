@@ -1,12 +1,12 @@
 import type { ComponentType } from 'react';
-import { CircleArrowUp, House, Settings, Sparkle } from 'lucide-react';
+import { BookA, CircleArrowUp, House, Settings, Sparkle } from 'lucide-react';
 import type { AppSnapshot } from '../shared/contracts';
 import { BrandMark } from './ui';
 import { useI18n } from './i18n';
 import { pages, type Page } from './settings/types';
 
 type IconComponent = ComponentType<{ size?: number; strokeWidth?: number }>;
-const icons: Record<Page, IconComponent> = { home: House, ai: Sparkle, basic: Settings };
+const icons: Record<Page, IconComponent> = { home: House, ai: Sparkle, vocabulary: BookA, basic: Settings };
 
 export function Sidebar({ page, onNavigate, snapshot }: { page: Page; onNavigate: (page: Page) => void; snapshot: AppSnapshot }) {
   const { update } = snapshot;

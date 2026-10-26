@@ -12,6 +12,7 @@ import { installInteractionSounds } from './sounds';
 import { Providers } from './settings/Providers';
 import { BasicSettings } from './settings/Preferences';
 import type { Page, RunAction, SettingsTab } from './settings/types';
+import { Vocabulary } from './vocabulary/Vocabulary';
 import { Busy } from './ui';
 import { documentLanguage, I18nProvider, translate, type MessageKey } from './i18n';
 import { VoiceOverlay } from './VoiceOverlay';
@@ -57,11 +58,14 @@ function App() {
   const language = snapshot?.settings.general.language ?? 'zh';
   useEffect(() => { document.documentElement.lang = documentLanguage(language); }, [language]);
   const run: RunAction = async action => {
+    // Dictation controls explain their failures on the Home card, so their toast only points there.
+    // A correction is a vocabulary edit, so it shows main's message like the vocabulary actions.
+    const control = action.type.startsWith('dictation.') && action.type !== 'dictation.correct';
     try {
       const result = await bridge.dispatch(action);
       clearTimeout(toastTimer.current);
-      if (!result.ok || (result.message && !action.type.startsWith('dictation.'))) {
-        setToast(action.type.startsWith('dictation.')
+      if (!result.ok || (result.message && !control)) {
+        setToast(control
           ? { key: action.type === 'dictation.copy' ? 'common.shell.copyFailed' : 'common.shell.dictationIncomplete' }
           : result.message ? { text: result.message } : { key: 'common.shell.actionFailed' });
         toastTimer.current = setTimeout(() => setToast(null), 6000);
@@ -93,6 +97,7 @@ function App() {
           <div key={current} className={`page ${current === 'home' ? 'page-home' : ''}`.trim()} role="tabpanel" id={`settings-panel-${current}`} aria-labelledby={`settings-tab-${current}`}>
             {current === 'home' ? <Home snapshot={snapshot} run={run} openSettings={openSettings} />
               : current === 'ai' ? <Providers snapshot={snapshot} run={run} />
+              : current === 'vocabulary' ? <Vocabulary snapshot={snapshot} run={run} openSettings={openSettings} />
               : <BasicSettings snapshot={snapshot} run={run} />}
           </div>
         </div>

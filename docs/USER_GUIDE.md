@@ -10,7 +10,7 @@ To run from source, follow the [development guide](DEVELOPMENT.md). The first ru
 
 ## The main window
 
-The window is a two-column shell on a white background. The sidebar shows the application mark, the same seven-bar waveform as the Dock icon, and three destinations in order: **首页**, **AI 配置** and **基本设置**. Arrow keys move between them. While a newer release is available, a small **有新版本** pill at the bottom of the sidebar opens **基本设置**. The content column scrolls on its own; the version lives in **基本设置 → 关于**.
+The window is a two-column shell on a white background. The sidebar shows the application mark, the same seven-bar waveform as the Dock icon, and four destinations in order: **首页**, **AI 配置**, **词库** and **基本设置**. Arrow keys move between them. While a newer release is available, a small **有新版本** pill at the bottom of the sidebar opens **基本设置**. The content column scrolls on its own; the version lives in **基本设置 → 关于**.
 
 **首页** carries the **说话，不打字** title and the dictation card: the **开始听写** button, the shortcut keycaps, the recording waveform and elapsed time, the recovery alert and the current result. Below it a single status list has three rows, **语音识别**, **文字润色** and **快捷键**, each with its current detail and a status badge; clicking a row opens the matching destination. The shortcut and its status appear nowhere else on the page, and the getting-started steps live only in the setup guide.
 
@@ -65,6 +65,16 @@ The level saves immediately; no second enable switch or Save button is required.
 
 Use **个人表达说明** for optional instructions such as preferred terminology or language style. It saves when you leave the field or press Command/Ctrl+Enter. Save failures remain visible with a retry action. When **不润色** is selected, these instructions stay saved but do not affect output. Dictated questions remain text to write, not instructions for the model to answer.
 
+## Vocabulary
+
+**词库** keeps the words you say often, such as names, products and technical terms, each with the forms speech recognition tends to write instead (**常被识别成**): for example **Claude**, often heard as **云** or **克劳德**. Add a word with **常用词**, optionally its variants separated by commas, and **添加**; adding a word that is already there only adds the new variants. Each row shows how many finished dictations contained the word (**用过 n 次**, or **尚未用到**), most used first, with **编辑** and **删除**.
+
+With **轻度润色** or **强力润色**, the words that matter for a dictation go to the polishing model with the transcript, and it changes a misheard word only where the context fits the listed word: 「我用云写了个脚本，部署在阿里云的服务器上」 becomes 「我用 Claude 写了个脚本，部署在阿里云的服务器上」. With **不润色** no model changes the transcript, so the vocabulary does not correct anything; the page says so. When the speech service uses the OpenAI-compatible protocol, the most used words are also sent with the audio as recognition hints (`prompt`, plus `keywords` for `gpt-transcribe` models), at every level; Xiaomi MiMo offers no such input. Correction quality depends on the polishing model and is not guaranteed.
+
+To teach a correction from a result, select the wrong text in the **首页** result card and choose **纠错**: **识别成** holds the selection; type what it should be under **应为** and choose **加入词库**. The word is added (or gains the variant) and that occurrence in the shown result is fixed; the clipboard is not changed, so use the copy button for the corrected text. Without a selection you can type both fields; the word is learned and the result is left as it is.
+
+The vocabulary is stored with the settings on this computer, unencrypted like other settings, and counts uses only: no dictated text is kept. Up to 500 words of at most 64 characters, each with up to 8 variants.
+
 ## Basic settings and permissions
 
 **基本设置** groups its rows under **快捷键** (primary and fallback shortcut), **音频** (microphone, **录音提示音** and **录音时静音其他声音**), **通用** (**语言** with **中文** / **English**, then **完成后自动粘贴** and **登录系统时启动**), **系统权限** and **关于**. Each row keeps its label on the left and its control on the right. Selectors and switches save immediately. The fallback shortcut offers three readable presets and saves on selection; an existing custom binding remains available. There is no global Save action. Startup behavior applies to packaged applications.
@@ -105,7 +115,7 @@ Development defaults to `.local/app/`, with configuration and encrypted credenti
 
 API keys are encrypted through OS-protected storage before persistence; encryption failure does not permit plaintext fallback. Other settings are not encrypted. The current transcript is not stored as a persistent transcript archive. Raw audio is kept in memory for the active request; failed recognition may retain it for up to five minutes for retry. Success, cancellation, a new session or quitting clears it. Restarting cannot recover that audio.
 
-Every finished result replaces the system clipboard. The app does not restore its prior contents. Audio is sent to the configured speech provider, and polishing sends the transcript plus writing instructions to the configured text provider. No screenshots, arbitrary documents or continuous typing are supplied as context. Provider retention and billing policies are independent of local storage; the app does not promise offline operation or provider-wide zero retention.
+Every finished result replaces the system clipboard. The app does not restore its prior contents. Audio is sent to the configured speech provider, and polishing sends the transcript plus writing instructions and the relevant vocabulary words to the configured text provider; an OpenAI-compatible speech provider also receives the most used vocabulary words as recognition hints. No screenshots, arbitrary documents or continuous typing are supplied as context. Provider retention and billing policies are independent of local storage; the app does not promise offline operation or provider-wide zero retention.
 
 ## Troubleshooting
 

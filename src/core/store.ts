@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { languages, type AppSettings, type SettingsPatch } from '../shared/contracts';
+import { languages, vocabularyLimits, type AppSettings, type SettingsPatch, type VocabularyEntry } from '../shared/contracts';
+import { mergeVariants, parseVocabulary, rankVocabulary, sameWord, vocabularyInput } from './vocabulary';
 
 export interface SecretCrypto { available(): boolean; encrypt(value: string): string; decrypt(value: string): string }
 export const defaults = (): AppSettings => ({
@@ -65,6 +67,7 @@ export class Store {
   private document: Record<string, unknown> = {};
   private settings = defaults();
   private secrets: Partial<Record<'asr' | 'cleanup', string>> = {};
+  private entries: VocabularyEntry[] = [];
   constructor(private file: string, private crypto: SecretCrypto) {
     try {
       this.document = object(JSON.parse(readFileSync(file, 'utf8')));
@@ -77,11 +80,12 @@ export class Store {
         if (typeof secrets[key] !== 'string') throw new Error('Invalid saved credential.');
         this.secrets[key] = secrets[key];
       }
+      if (Object.hasOwn(this.document, 'vocabulary')) this.entries = parseVocabulary(this.document.vocabulary);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Saved settings cannot be read. Keep the data file for recovery.');
     }
   }
-  private persist(next: AppSettings, encrypted: Partial<Record<'asr' | 'cleanup', string>>) {
+  private persist(next: AppSettings, encrypted: Partial<Record<'asr' | 'cleanup', string>>, vocabulary = this.entries) {
     // Preserve unrecognized document fields as opaque data. Only the public
     // settings projection participates in runtime behavior or provider requests.
     const savedSettings = this.document.settings ? object(this.document.settings) : {};
@@ -94,18 +98,51 @@ export class Store {
       delete secrets[key];
       if (encrypted[key]) secrets[key] = encrypted[key];
     }
-    const document = { ...this.document, settings, secrets };
+    const document = { ...this.document, settings, secrets, vocabulary };
     mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.tmp`;
     writeFileSync(temp, JSON.stringify(document, null, 2), { mode: 0o600 });
     renameSync(temp, this.file);
     this.document = document;
-    this.settings = next; this.secrets = encrypted;
+    this.settings = next; this.secrets = encrypted; this.entries = vocabulary;
   }
   snapshot() {
     const settings = structuredClone(this.settings);
     for (const key of ['asr', 'cleanup'] as const) settings[key].hasApiKey = Boolean(this.secrets[key]);
     return { settings };
+  }
+  /** Most used first. */
+  vocabulary(): VocabularyEntry[] { return structuredClone(rankVocabulary(this.entries)); }
+  /** Without an id, a word already present gains the new variants instead of a duplicate entry. */
+  saveVocabulary(input: unknown, now = Date.now()): VocabularyEntry {
+    const { id, term, soundsLike } = vocabularyInput(input);
+    const entries = structuredClone(this.entries);
+    const same = entries.find(entry => sameWord(entry.term, term));
+    let saved: VocabularyEntry;
+    if (id) {
+      const entry = entries.find(item => item.id === id);
+      if (!entry) throw new Error('This word is no longer in the vocabulary.');
+      if (same && same !== entry) throw new Error('This word is already in the vocabulary.');
+      Object.assign(entry, { term, soundsLike, updatedAt: now }); saved = entry;
+    } else if (same) {
+      Object.assign(same, { term, soundsLike: mergeVariants(same.soundsLike, soundsLike, term), updatedAt: now }); saved = same;
+    } else {
+      if (entries.length >= vocabularyLimits.entries) throw new Error(`The vocabulary holds at most ${vocabularyLimits.entries} words.`);
+      saved = { id: randomUUID(), term, soundsLike, hits: 0, lastUsedAt: 0, createdAt: now, updatedAt: now };
+      entries.push(saved);
+    }
+    this.persist(this.settings, this.secrets, entries);
+    return structuredClone(saved);
+  }
+  deleteVocabulary(id: unknown) {
+    if (typeof id !== 'string' || !id) throw new Error('Invalid vocabulary entry.');
+    const entries = this.entries.filter(entry => entry.id !== id);
+    if (entries.length !== this.entries.length) this.persist(this.settings, this.secrets, entries);
+  }
+  /** Counts one use per dictation; no text is stored. */
+  recordVocabularyHits(ids: string[], now = Date.now()) {
+    if (!ids.length) return;
+    this.persist(this.settings, this.secrets, this.entries.map(entry => ids.includes(entry.id) ? { ...entry, hits: entry.hits + 1, lastUsedAt: now } : entry));
   }
   secret(key: 'asr' | 'cleanup') {
     const value = this.secrets[key];

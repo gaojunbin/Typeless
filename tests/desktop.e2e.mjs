@@ -256,7 +256,7 @@ try {
   assert.equal(missing.ok, false); assert.match(missing.message, /API key/);
   assert.equal(requests.length, 0);
   assert.equal(await page.getByRole('button', { name: '保存设置', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('tab').count(), 3);
+  assert.equal(await page.getByRole('tab').count(), 4);
   const waitSettings = async expected => page.waitForFunction(async expected => {
     const { settings } = await window.typeless.getSnapshot();
     return Object.entries(expected).every(([group, fields]) => Object.entries(fields).every(([key, value]) => settings[group][key] === value));
@@ -393,6 +393,33 @@ try {
   await waitSettings({ asr: { model: 'mimo-v2.5-asr', hasApiKey: true } });
   // No replacement key is supplied again: later HTTP and restart checks prove retention.
 
+  stage('词库 adds, edits and deletes words');
+  const vocabularyWords = async () => (await snapshot(page)).vocabulary.map(({ term, soundsLike, hits }) => ({ term, soundsLike, hits }));
+  const vocabularyRow = term => page.locator('li.vocabulary-entry').filter({ has: page.locator('.vocabulary-term', { hasText: new RegExp(`^${term}$`) }) });
+  await openTab('词库');
+  await expect(page.locator('h1')).toHaveText('词库');
+  await expect(page.locator('.vocabulary-note')).toHaveCount(0);
+  await expect(page.locator('.vocabulary-empty')).toBeVisible();
+  await page.locator('#vocabulary-term').fill('开会');
+  await page.locator('#vocabulary-sounds-like').fill('开灰， 开汇');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect.poll(vocabularyWords).toEqual([{ term: '开会', soundsLike: ['开灰', '开汇'], hits: 0 }]);
+  await expect(page.locator('#vocabulary-term')).toHaveValue('');
+  await expect(vocabularyRow('开会').locator('.vocabulary-variants')).toHaveText('常被识别成：开灰、开汇');
+  await expect(vocabularyRow('开会').locator('.vocabulary-usage')).toHaveText('尚未用到');
+  await page.locator('#vocabulary-term').fill('Typeless');
+  await page.locator('#vocabulary-term').press('Enter');
+  await expect.poll(async () => (await vocabularyWords()).map(entry => entry.term).sort()).toEqual(['Typeless', '开会']);
+  await vocabularyRow('Typeless').getByRole('button', { name: '编辑', exact: true }).click();
+  const vocabularyEditor = page.locator('li.vocabulary-entry.editing');
+  await vocabularyEditor.getByLabel('常用词', { exact: true }).fill('Typeless App');
+  await vocabularyEditor.getByLabel('常被识别成', { exact: true }).fill('type less');
+  await vocabularyEditor.getByRole('button', { name: '保存', exact: true }).click();
+  await expect.poll(async () => (await vocabularyWords()).find(entry => entry.term === 'Typeless App')?.soundsLike).toEqual(['type less']);
+  await page.screenshot({ path: join(dataRoot, 'vocabulary.png'), fullPage: true, animations: 'disabled' });
+  await vocabularyRow('Typeless App').getByRole('button', { name: '删除', exact: true }).click();
+  await expect.poll(async () => (await vocabularyWords()).map(entry => entry.term)).toEqual(['开会']);
+
   stage('基本设置 copies a diagnostics report');
   await openTab('基本设置');
   const diagnosticsRow = page.locator('.setting-row.pref-permission-row').filter({ hasText: '诊断信息' });
@@ -434,6 +461,8 @@ try {
   await page.screenshot({ path: join(dataRoot, 'writing-none.png'), animations: 'disabled' });
   await expect(page.getByLabel(/^个人表达说明/)).toHaveValue(instructions);
   assert.equal((await snapshot(page)).settings.writing.instructions, instructions);
+  await openTab('词库');
+  await expect(page.locator('.vocabulary-note')).toContainText('当前为「不润色」，词库不会用于纠错。');
   const beforeRaw = requests.length;
   await record(page);
   let current = await waitStatus(page, 'ready');
@@ -455,6 +484,10 @@ try {
   assert.match(asr.body.messages[0].content[0].input_audio.data, /^data:audio\/wav;base64,UklGR/);
   const polish = requests.find(item => item.body?.model === 'test-cleanup');
   assert.equal(polish.headers.authorization, 'Bearer FAKE-TEXT-KEY');
+  assert.deepEqual(JSON.parse(polish.body.messages.at(-1).content), { transcript: '嗯，下周三下午三点开会。', vocabulary: [{ term: '开会', soundsLike: ['开灰', '开汇'] }] });
+  assert.ok(polish.body.messages[0].content.includes('soundsLike forms'), 'The polishing prompt must carry the vocabulary rule.');
+  assert.equal(requests.filter(item => item.body?.model === 'mimo-v2.5-asr').some(item => JSON.stringify(item.body).includes('开灰')), false, 'MiMo recognition requests carry no vocabulary.');
+  assert.equal((await vocabularyWords()).find(entry => entry.term === '开会').hits, 2, 'Both finished dictations contained the word.');
   await openTab('首页');
   await expect(page.locator('.result-text')).toBeVisible();
   await page.screenshot({ path: join(dataRoot, 'home-result.png'), animations: 'disabled' });
@@ -469,6 +502,22 @@ try {
   if (muteOutcome.mute === 'muted') assert.equal(muteOutcome.restore, 'restored');
   // Copying the result again puts the owned synthetic text back, so closing still restores the original clipboard.
   assert.equal((await dispatch(page, { type: 'dictation.copy' })).ok, true);
+  stage('the result card teaches a correction and fixes the selected text');
+  const clipboardBeforeCorrection = await app.evaluate(async ({ clipboard }) => clipboard.readText());
+  await page.locator('.result-text').evaluate(element => {
+    const range = document.createRange(); range.setStart(element.firstChild, 0); range.setEnd(element.firstChild, 3);
+    const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  });
+  await page.getByRole('button', { name: '纠错', exact: true }).click();
+  const correctionForm = page.locator('form.correction-form');
+  await expect(correctionForm.getByLabel('识别成', { exact: true })).toHaveValue('下周三');
+  await correctionForm.getByLabel('应为', { exact: true }).fill('下周四');
+  await page.screenshot({ path: join(dataRoot, 'home-correction.png'), animations: 'disabled' });
+  await correctionForm.getByRole('button', { name: '加入词库', exact: true }).click();
+  await expect(page.locator('.result-text')).toHaveText('下周四下午三点开会。');
+  await expect(page.getByRole('button', { name: '已加入词库' })).toBeVisible();
+  assert.deepEqual((await vocabularyWords()).find(entry => entry.term === '下周四'), { term: '下周四', soundsLike: ['下周三'], hits: 1 });
+  assert.equal(await app.evaluate(async ({ clipboard }) => clipboard.readText()), clipboardBeforeCorrection, 'A correction must not change the clipboard.');
   stage('raw result copy does not replace the polished result');
   const resultBeforeCopy = (await snapshot(page)).session;
   await page.getByRole('group', { name: '听写结果视图', exact: true }).getByRole('button', { name: '原文', exact: true }).click();
@@ -560,6 +609,7 @@ try {
   assert.equal(current.settings.general.autoInsert, false); assert.equal(current.settings.shortcut.primary, 'Disabled');
   assert.equal(current.settings.cleanup.enabled, true); assert.equal(current.settings.writing.strength, 'balanced');
   assert.equal(current.settings.writing.instructions, instructions);
+  assert.deepEqual(current.vocabulary.map(({ term, soundsLike, hits }) => [term, soundsLike, hits]), [['开会', ['开灰', '开汇'], 2], ['下周四', ['下周三'], 1]]);
   await openTab('AI 配置');
   await expect(page.getByRole('button', { name: '强力润色', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await openTab('基本设置');
@@ -570,7 +620,7 @@ try {
   await expect(provider('文字润色').getByLabel(/^润色 API 密钥/)).toHaveValue('');
   stage('minimum-window layout');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('#default')).setSize(880, 600));
-  for (const [name, file] of [['首页', 'home'], ['AI 配置', 'ai'], ['基本设置', 'basic']]) {
+  for (const [name, file] of [['首页', 'home'], ['AI 配置', 'ai'], ['词库', 'vocabulary'], ['基本设置', 'basic']]) {
     await openTab(name);
     await expect(page.getByRole('tabpanel')).toHaveCount(1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally.`);
@@ -586,12 +636,13 @@ try {
   // The restart above reset the release check, so the row is back to its unchecked or freshly checked state.
   await expect(page.locator('.about-row .badge')).toHaveText(/^(Not checked|Checking…|Version 99\.0\.0 available)$/);
   await expect(page.getByRole('button', { name: /^(Check for updates|Checking…|Download update)$/ })).toBeVisible();
-  for (const [name, file] of [['Home', 'home'], ['AI Setup', 'ai'], ['Settings', 'basic']]) {
+  for (const [name, file] of [['Home', 'home'], ['AI Setup', 'ai'], ['Vocabulary', 'vocabulary'], ['Settings', 'basic']]) {
     await page.getByRole('tab', { name, exact: true }).click();
     await expect(page.getByRole('tabpanel')).toHaveCount(1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} must not overflow horizontally in English.`);
     // The language option 中文 is always written in its own language, so it is the one CJK string allowed here.
-    assert.equal(await page.evaluate(() => /[\u4e00-\u9fff]/.test(document.querySelector('main.content').innerText.replace(/中文/g, ''))), false, `${name} must not show Chinese copy in English.`);
+    // The saved vocabulary words are the user's own Chinese text, not interface copy.
+    assert.equal(await page.evaluate(words => /[\u4e00-\u9fff]/.test(words.reduce((text, word) => text.split(word).join(''), document.querySelector('main.content').innerText.replace(/中文/g, ''))), ['开会', '开灰', '开汇', '下周四', '下周三']), false, `${name} must not show Chinese copy in English.`);
     await page.screenshot({ path: join(dataRoot, `english-${file}.png`), fullPage: true, animations: 'disabled' });
   }
   await page.getByRole('group', { name: 'Language', exact: true }).getByRole('button', { name: '中文', exact: true }).click();
@@ -599,7 +650,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'install-attempt-fails-cleanly-in-development', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'mute-switch-autosave', 'recording-mute-restored-through-helper', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'four-sidebar-tabs', 'vocabulary-add-edit-delete', 'vocabulary-inactive-note', 'vocabulary-in-polishing-not-mimo', 'vocabulary-usage-count', 'result-card-correction', 'vocabulary-restart-persistence', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'install-attempt-fails-cleanly-in-development', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-four-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'mute-switch-autosave', 'recording-mute-restored-through-helper', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {

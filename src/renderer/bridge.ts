@@ -1,5 +1,6 @@
 import type { AppSnapshot, TypelessBridge } from '../shared/contracts';
 import { translate } from './i18n';
+import { savePreviewEntry } from './vocabulary/preview';
 
 export const isPreview = !window.typeless;
 function previewBridge(): TypelessBridge {
@@ -17,6 +18,7 @@ function previewBridge(): TypelessBridge {
     session: { id: '', status: 'idle', startedAt: 0, durationMs: 0, level: 0, rawText: '', text: '', inserted: false, canRetry: false },
     update: { status: 'none', currentVersion: 'preview', checkedAt: Date.now() },
     permissions: { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', primaryShortcutAvailable: false, fallbackShortcutAvailable: false, inputMonitoring: false, shortcutMessage: '', shortcutPresses: 0 },
+    vocabulary: [],
   };
   const listeners = new Set<(value: AppSnapshot) => void>();
   const publish = () => listeners.forEach(listener => listener(structuredClone(state)));
@@ -36,6 +38,19 @@ function previewBridge(): TypelessBridge {
           else state.permissions.accessibility = true;
           state.permissions.primaryShortcutAvailable = true;
           state.permissions.shortcutMessage = 'ready';
+          publish();
+          return { ok: true };
+        case 'vocabulary.save':
+          if (!savePreviewEntry(state.vocabulary, action.entry)) return { ok: false };
+          publish();
+          return { ok: true };
+        case 'vocabulary.delete':
+          state.vocabulary = state.vocabulary.filter(entry => entry.id !== action.id);
+          publish();
+          return { ok: true };
+        // The preview never has a dictation result to fix, so a correction only learns the misrecognition.
+        case 'dictation.correct':
+          if (!savePreviewEntry(state.vocabulary, { term: action.term, soundsLike: [action.heard] })) return { ok: false };
           publish();
           return { ok: true };
         case 'microphone.test':

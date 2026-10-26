@@ -1,0 +1,37 @@
+/* 词库 page. Only classes rendered under src/renderer/vocabulary/. Tokens live in tokens.css, primitives in base.css;
+   every rule that refines a base primitive carries an extra class so it wins whatever the stylesheet order. */
+
+/* Shown only while the vocabulary cannot take effect: quiet gray information, never an alert. */
+.card.vocabulary-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 32px; padding: 12px 16px; color: var(--text-secondary); }
+.card.vocabulary-note > span { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+.card.vocabulary-note .text-button { font-size: inherit; }
+
+/* 添加常用词 */
+.vocabulary-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
+
+/* 常用词 list: hairline-separated rows, the term over its misrecognitions, usage and actions on the right. */
+.vocabulary-list { margin: 0; padding: 0; list-style: none; }
+.vocabulary-entry { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; padding: 14px 0; }
+.vocabulary-entry + .vocabulary-entry { border-top: 1px solid var(--line); }
+.vocabulary-entry-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; min-width: 0; }
+.vocabulary-term { font-size: var(--fs-heading); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.vocabulary-variants { color: var(--text-secondary); overflow-wrap: anywhere; }
+.vocabulary-entry-meta { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.vocabulary-usage { color: var(--text-secondary); white-space: nowrap; }
+.vocabulary-entry-meta .text-button { font-size: var(--fs-body); }
+.vocabulary-empty { padding: 16px 0; color: var(--text-secondary); }
+
+/* A row in edit mode: both fields side by side, 取消 and 保存 below on the right. */
+.vocabulary-entry.editing { display: block; padding: 16px 0; }
+.vocabulary-editor-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px 16px; }
+.vocabulary-editor .field { gap: 6px; }
+.vocabulary-editor .field > span { font-size: var(--fs-body); font-weight: 500; color: var(--text-secondary); }
+.vocabulary-editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 12px; }
+.vocabulary-editor-actions .text-button { font-size: var(--fs-body); }
+.vocabulary-editor .error-text { margin-top: 8px; }
+
+.vocabulary-footnote { margin-top: 24px; color: var(--text-secondary); line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .vocabulary-editor-fields { grid-template-columns: minmax(0, 1fr); }
+}

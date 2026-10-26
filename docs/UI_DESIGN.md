@@ -14,7 +14,7 @@ Goals
 
 Non-goals
 
-- No account, history archive, dictionary, translation, Ask-anything, personalization report, cloud sync, or dark mode. Do not add disabled placeholders for them.
+- No account, history archive, translation, Ask-anything, personalization report, cloud sync, or dark mode. Do not add disabled placeholders for them. (A personal vocabulary was added later; see section 17.)
 - No new `AppAction` types, IPC channels, settings fields or provider behavior. `src/shared/contracts.ts`, `src/core/`, `electron/controller.ts`, `electron/preload.ts` and `electron/native-client.ts` are out of scope.
 - No copying of the Typeless logo mark, brand illustrations or fonts as files. Layout, proportions, color roles and component styling are copied; the logo is replaced by a lucide `AudioWaveform` glyph.
 
@@ -37,7 +37,7 @@ The main window becomes a two-column shell.
 └──────────────┴────────────────────────────────────────────────┘
 ```
 
-Destinations (in this order, since section 13): `home` 首页, `ai` AI 配置, `basic` 基本设置; 表达风格 lives inside AI 配置. All three render inside the content column; there is no modal settings sheet (official Typeless uses one; this project keeps settings as pages because the whole product is configuration). The `Page` type lives in `src/renderer/settings/types.ts`.
+Destinations (in this order, since section 17): `home` 首页, `ai` AI 配置, `vocabulary` 词库, `basic` 基本设置; 表达风格 lives inside AI 配置. All of them render inside the content column; there is no modal settings sheet (official Typeless uses one; this project keeps settings as pages because the whole product is configuration). The `Page` type lives in `src/renderer/settings/types.ts`.
 
 Initial page: the first-run setup guide (section 12) while `settings.general.setupCompleted` is `false`; afterwards `ai` when no speech key is saved, else `home`. Recovery links (`recoverySettings`) and the unconfigured primary action navigate to `ai` or `basic` exactly as today. Because the recovery alert lives on 首页, the shell switches to `home` whenever a dictation session newly enters the `error` state, so clicking the recovery capsule (which only shows the window) always lands on the alert.
 
@@ -275,7 +275,7 @@ Cross-file contract: `main.tsx` renders `<Sidebar page onNavigate snapshot />` a
 
 ## 10. Accessibility and test hooks that must survive
 
-- `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (`首页`, `AI 配置`, `基本设置`) since section 13, `aria-selected`; one `role=tabpanel` rendered.
+- `nav[aria-label="主导航"]` > `role=tablist` with four `role=tab` (`首页`, `AI 配置`, `词库`, `基本设置`) since section 17, `aria-selected`; one `role=tabpanel` rendered.
 - Home: `button` "配置语音" / "开始听写" / "结束听写"; `.dictation-panel [role="alert"]` with buttons "基本设置" / "AI 配置" / "重试"; `role=group[name="听写结果视图"]` with buttons "整理后"/"原文" carrying `aria-pressed`; `.result-text`; buttons "复制本次听写" then "已复制".
 - AI 配置: `form.provider-panel` with `h2` "语音识别"/"文字润色"; labels 语音服务地址, 语音模型, 语音 API 密钥, 润色服务地址, 润色模型, 润色 API 密钥; button "保存"; no button named "保存设置"; `role=alert` with 保存失败 text on failure.
 - 基本设置: `switch` named 完成后自动粘贴, 录音提示音, 录音时静音其他声音 (since section 16), 登录系统时启动; selects labelled 主要快捷键 (value `Disabled` option) and 备用快捷键; `.save-status`.
@@ -485,7 +485,7 @@ Under the control: when `releaseUrl` is present a `.text-button` "更新说明" 
 
 ### 13.7 Test hooks (replaces the affected lines of section 10)
 
-- `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (首页, AI 配置, 基本设置). No footer shortcut card; `button.sidebar-update` only while an update is available.
+- `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (首页, AI 配置, 基本设置), four since section 17 (词库 before 基本设置). No footer shortcut card; `button.sidebar-update` only while an update is available.
 - Home: `.status-list` with three `button.status-row` named by their labels (语音识别, 文字润色, 快捷键); `.dictation-panel` hooks unchanged; no `.home-hero`, `.shortcut-card`, `.usecase-grid`, `.home-rail`, `.quickstart-card` or `.home-version`.
 - AI 配置: `form.provider-panel` with `h2` 文字润色 contains buttons 不润色/轻度润色/强力润色 with `aria-pressed`, textarea labelled 个人表达说明 and `.writing-inactive` containing "开启润色后生效，说明会保留。"; the provider labels and 保存 button are unchanged.
 - 基本设置: group 关于 with the 版本 row; buttons "检查更新" / "下载更新" / "打开安装包" / "重试" and badge texts as in 13.5; "更新说明" text button.
@@ -579,3 +579,31 @@ In the 音频 group, after 录音提示音: a switch row labelled **录音时静
 - Unit: `tests/output-mute.test.ts` (timing, cue guard, serialization, pairing, quit release with an unresponsive helper), `tests/core-store.test.ts` (default and upgrade), `tests/native-client.test.ts` (request relay).
 - Native: the helper self-test covers the mute policy against a fake device.
 - Desktop e2e: the switch autosaves off and on; after a recording the diagnostics report shows answers from the real helper, and on macOS the system output mute reads the same as before the recording.
+
+## 17. 词库 (2026-10-26)
+
+Requested after 2.4.4: a personal vocabulary that helps fix homophones such as 云 for Claude. Version 1 is manual: words are added on their own page or taught from the result card, and each word counts its uses. Decided with the user: no unconditional replacement rules, no AI correction under 不润色, the page is a fourth sidebar destination, and nothing is learned automatically. A later account sync is anticipated, so entries carry an id and timestamps.
+
+### 17.1 Page
+
+Sidebar destination `vocabulary`, label 词库 / Vocabulary, lucide `BookA`, between AI 配置 and 基本设置. `src/renderer/vocabulary/`:
+
+- `PageHeader` 词库, subtitle "你常说的词，以及语音识别常把它写成的样子。开启润色后，AI 会结合上下文把认错的词改回来。"
+- `.vocabulary-note` (muted card) only while the vocabulary cannot take effect: "当前为「不润色」，词库不会用于纠错。" or "文字润色尚未配置，词库暂不生效。", with a `.text-button` AI 配置.
+- `SectionGroup` 添加常用词 (`BookPlus`): `form.vocabulary-add` with `#vocabulary-term` labelled 常用词 (placeholder "例如：Claude") and `#vocabulary-sounds-like` labelled 常被识别成 (hint "可选，多个写法用逗号分隔。", split on `,` `，` `、` `;` `；` and line breaks), primary 添加; Enter submits; an inline `.error-text` "没有保存，请检查内容后重试。" on failure.
+- `SectionGroup` "常用词 · N" (`BookA`): `ul.vocabulary-list > li.vocabulary-entry` in main's order (most used first) with `.vocabulary-term`, `.vocabulary-variants` "常被识别成：云、克劳德", `.vocabulary-usage` "用过 N 次" / "尚未用到", `.text-button` 编辑 and danger 删除 (immediate). 编辑 turns the row into `li.vocabulary-entry.editing > form.vocabulary-editor` with the same two labels, 取消 and 保存; Enter saves, Escape cancels. `.vocabulary-empty` when the list is empty.
+- `.vocabulary-footnote`: "词库保存在这台电脑上。开启润色时，与本次听写相关的词会随文字发送给润色服务；语音服务使用 OpenAI 兼容协议时，常用词也会作为识别提示发送。"
+
+### 17.2 Result card correction
+
+In the result header, `.result-actions` holds `.text-button` 纠错 left of the copy button, only for the 整理后 view of a finished session (`ready`, `error`, `cancelled`). Its mouse-down does not take focus, so a selection in `.result-text` prefills `form.correction-form`: 识别成 (the selection), 应为, 取消 and primary 加入词库. Submitting dispatches `dictation.correct` with `start` while 识别成 still equals the selection; main learns the pair, fixes that occurrence in the shown result and leaves the clipboard alone. The button then reads "已加入词库" with a check for two seconds.
+
+### 17.3 Mechanism (main process)
+
+`state.json` gains a top-level `vocabulary` array (`VocabularyEntry`: id, term, soundsLike, hits, lastUsedAt, createdAt, updatedAt), parsed strictly like the settings; at most 500 words of 1–64 characters with up to 8 variants. Saving without an id merges into an entry with the same term (case-insensitive). With polishing on, `cleanupVocabulary` sends the words the transcript mentions first, then the most used, at most 50, inside the JSON user message, plus a context rule and two examples in the prompt; nothing is sent when the list is empty or polishing is off. OpenAI-compatible ASR receives the 20 most used terms as `prompt` (and `keywords[]` for `gpt-transcribe*`); MiMo receives nothing. Each finished dictation counts one hit for every term its final text contains; a correction that brings a term into the result counts one too.
+
+### 17.4 Test hooks and acceptance
+
+- Hooks: tab 词库; `#vocabulary-term`, `#vocabulary-sounds-like`, button 添加; `li.vocabulary-entry` with `.vocabulary-term`, `.vocabulary-variants`, `.vocabulary-usage`, buttons 编辑 / 删除 / 保存 / 取消; `.vocabulary-note`; button 纠错, `form.correction-form` with labels 识别成 and 应为, button 加入词库, then a button named 已加入词库.
+- Unit: `tests/vocabulary.test.ts`, the vocabulary cases in `tests/core-store.test.ts`, `tests/provider-http.test.ts` and `tests/core-session.test.ts`, and `src/renderer/vocabulary/variants.test.ts`.
+- Desktop e2e: add, edit and delete on the page; the 不润色 note; the polishing request carries `{transcript, vocabulary}` while MiMo requests carry none; two dictations count two uses; the result card correction fixes the selection, learns the pair and leaves the clipboard unchanged; the list survives a restart; the page fits 880 × 600 and the English shell shows no Chinese copy apart from the user's words.

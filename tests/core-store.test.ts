@@ -110,3 +110,43 @@ describe('first-run setup flag', () => {
     expect(new Store(file, crypto).snapshot().settings.general.setupCompleted).toBe(false);
   });
 });
+describe('vocabulary', () => {
+  it('adds words, merges a repeated word and persists across restarts without touching the old dictionary field', () => {
+    const { file } = create();
+    writeFileSync(file, JSON.stringify({ settings: {}, secrets: {}, dictionary: [{ term: 'opaque-dictionary-sentinel' }] }));
+    const reopened = new Store(file, crypto);
+    const claude = reopened.saveVocabulary({ term: 'claude', soundsLike: ['云'] }, 100);
+    expect(claude).toMatchObject({ term: 'claude', soundsLike: ['云'], hits: 0, lastUsedAt: 0, createdAt: 100, updatedAt: 100 });
+    const merged = reopened.saveVocabulary({ term: 'Claude', soundsLike: ['克劳德', '云'] }, 200);
+    expect(merged).toMatchObject({ id: claude.id, term: 'Claude', soundsLike: ['克劳德', '云'], createdAt: 100, updatedAt: 200 });
+    reopened.saveVocabulary({ term: 'Typeless', soundsLike: [] }, 300);
+    reopened.recordVocabularyHits([claude.id], 400);
+    const restarted = new Store(file, crypto);
+    expect(restarted.vocabulary().map(item => [item.term, item.hits, item.lastUsedAt])).toEqual([['Claude', 1, 400], ['Typeless', 0, 0]]);
+    expect(JSON.parse(readFileSync(file, 'utf8')).dictionary).toEqual([{ term: 'opaque-dictionary-sentinel' }]);
+    expect(Object.keys(restarted.snapshot())).toEqual(['settings']);
+  });
+  it('edits by id, refuses a rename onto another word and deletes', () => {
+    const { store, file } = create();
+    const claude = store.saveVocabulary({ term: 'Claude', soundsLike: ['云'] });
+    const typeless = store.saveVocabulary({ term: 'Typeless', soundsLike: [] });
+    expect(store.saveVocabulary({ id: claude.id, term: 'Claude Code', soundsLike: ['cloud code'] })).toMatchObject({ id: claude.id, term: 'Claude Code', soundsLike: ['cloud code'] });
+    const before = readFileSync(file, 'utf8');
+    expect(() => store.saveVocabulary({ id: typeless.id, term: 'claude code', soundsLike: [] })).toThrow('already in the vocabulary');
+    expect(() => store.saveVocabulary({ id: 'missing', term: 'Other', soundsLike: [] })).toThrow('no longer in the vocabulary');
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    store.deleteVocabulary(typeless.id); store.deleteVocabulary('missing');
+    expect(new Store(file, crypto).vocabulary().map(item => item.term)).toEqual(['Claude Code']);
+    expect(() => store.deleteVocabulary(42)).toThrow('Invalid vocabulary entry.');
+  });
+  it('caps the number of words', () => {
+    const { store } = create();
+    for (let index = 0; index < 500; index++) store.saveVocabulary({ term: `w${index}`, soundsLike: [] });
+    expect(() => store.saveVocabulary({ term: 'one more', soundsLike: [] })).toThrow('at most 500 words');
+    expect(store.saveVocabulary({ term: 'W1', soundsLike: ['w one'] }).soundsLike).toEqual(['w one']);
+  });
+  it('refuses to open a damaged saved vocabulary instead of dropping it', () => {
+    const { file } = create(); const contents = JSON.stringify({ settings: {}, secrets: {}, vocabulary: [{ term: 'Claude' }] });
+    writeFileSync(file, contents); expect(() => new Store(file, crypto)).toThrow('cannot be read'); expect(readFileSync(file, 'utf8')).toBe(contents);
+  });
+});

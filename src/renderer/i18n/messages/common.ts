@@ -5,6 +5,7 @@ export const common = defineMessages({
   zh: {
     'common.page.home': '首页',
     'common.page.ai': 'AI 配置',
+    'common.page.vocabulary': '词库',
     'common.page.basic': '基本设置',
     'common.retry': '重试',
     'common.copied': '已复制',
@@ -35,6 +36,7 @@ export const common = defineMessages({
   en: {
     'common.page.home': 'Home',
     'common.page.ai': 'AI Setup',
+    'common.page.vocabulary': 'Vocabulary',
     'common.page.basic': 'Settings',
     'common.retry': 'Retry',
     'common.copied': 'Copied',

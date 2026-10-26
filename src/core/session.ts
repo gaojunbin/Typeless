@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AppSettings, CaptureCommand, CaptureEvent, DictationSession } from '../shared/contracts';
 import { Store, bounded } from './store';
 import { ProviderError, Providers } from './providers';
+import { asrHints, cleanupVocabulary, mentions, usedEntryIds } from './vocabulary';
 export interface SessionHost {
   capture(command: CaptureCommand): void;
   copy(text: string, signal?: AbortSignal): Promise<void>;
@@ -17,6 +18,7 @@ export class Sessions {
   private awaitingAudio = false;
   private expiry?: ReturnType<typeof setTimeout>;
   private generation = 0;
+  private counted = '';
   private jobContext?: { state: { settings: AppSettings }; asrKey: string; cleanupKey: string };
   private snapshotContext() {
     const state = { settings: this.store.snapshot().settings };
@@ -100,7 +102,7 @@ export class Sessions {
     try {
       if (!this.session.rawText) {
         if (!this.audio) throw new Error('The recording is no longer available. Record again.');
-        const raw = await this.providers.transcribe(state.settings.asr, asrKey, this.audio, state.settings.writing.language, signal);
+        const raw = await this.providers.transcribe(state.settings.asr, asrKey, this.audio, state.settings.writing.language, signal, asrHints(this.store.vocabulary()));
         if (!this.active(id, generation)) return;
         this.session.rawText = raw;
       }
@@ -110,7 +112,8 @@ export class Sessions {
       try {
         const current = this.store.snapshot();
         const cleanupSettings = { ...state.settings, cleanup: { ...state.settings.cleanup, enabled: current.settings.cleanup.enabled }, writing: { ...state.settings.writing, strength: current.settings.writing.strength, instructions: current.settings.writing.instructions } };
-        cleaned = await this.providers.cleanup(cleanupSettings, cleanupKey, this.session.rawText, signal);
+        const vocabulary = cleanupSettings.cleanup.enabled ? cleanupVocabulary(this.store.vocabulary(), this.session.rawText) : [];
+        cleaned = await this.providers.cleanup(cleanupSettings, cleanupKey, this.session.rawText, signal, vocabulary);
       } catch (error) {
         if (!this.active(id, generation)) return;
         cleaned = { text: this.session.rawText, warning: `Text processing failed. Original transcript is ready. ${error instanceof Error ? error.message : ''}` };
@@ -118,6 +121,7 @@ export class Sessions {
       if (!this.active(id, generation)) return;
       this.session.text = cleaned.text; this.session.warning = cleaned.warning;
       this.audio = undefined; this.jobContext = undefined;
+      this.countVocabulary(id, cleaned.text);
       await this.deliver(state.settings.general.autoInsert);
     } catch (error) {
       if (!this.active(id, generation)) return;
@@ -132,6 +136,24 @@ export class Sessions {
     this.jobContext = this.snapshotContext();
     this.session.warning = undefined; this.session.error = undefined; this.session.errorCode = undefined; this.session.delivery = 'none'; this.session.copied = false;
     this.session.status = this.session.rawText ? 'polishing' : 'transcribing'; this.emit(); await this.process();
+  }
+  // One use per dictation, even when a retry produces the text again; a failed count never fails the dictation.
+  private countVocabulary(id: string, text: string) {
+    if (this.counted === id) return;
+    this.counted = id;
+    try { this.store.recordVocabularyHits(usedEntryIds(this.store.vocabulary(), text)); } catch { /* Usage counts are best effort. */ }
+  }
+  /** Learns `heard` as a misrecognition of `term`; with `start`, also fixes that occurrence in the shown result. The clipboard is left alone. */
+  correct(heard: string, term: string, start?: number) {
+    const shown = this.session.text || this.session.rawText;
+    if (!shown || ['arming', 'recording', 'transcribing', 'polishing', 'inserting'].includes(this.session.status)) throw new Error('No finished result is available to correct.');
+    const saved = this.store.saveVocabulary({ term, soundsLike: [heard] });
+    if (start !== undefined && heard && shown.slice(start, start + heard.length) === heard) {
+      this.session.text = shown.slice(0, start) + saved.term + shown.slice(start + heard.length);
+      // The corrected dictation used the word even though recognition missed it.
+      if (!mentions(shown, saved.term)) { try { this.store.recordVocabularyHits([saved.id]); } catch { /* Usage counts are best effort. */ } }
+      this.emit();
+    }
   }
   async copy(source: 'result' | 'raw' = 'result') {
     const text = source === 'raw' ? this.session.rawText : this.session.text || this.session.rawText;

@@ -5,6 +5,7 @@ import type { RunAction, SettingsTab } from './settings/types';
 import { Busy, Card, clockText, KeyChips, Segmented, sessionLabelKeys, Wave } from './ui';
 import { useI18n } from './i18n';
 import { recoveryMessage, recoverySettings, warningMessage } from './sessionPresentation';
+import { CorrectionForm, useCorrection } from './CorrectionForm';
 
 export function DictationPanel({ snapshot, run, openSettings }: { snapshot: AppSnapshot; run: RunAction; openSettings: (tab: SettingsTab) => void }) {
   const { session, settings, permissions } = snapshot;
@@ -30,10 +31,16 @@ export function DictationPanel({ snapshot, run, openSettings }: { snapshot: AppS
   const visibleText = visibleSource === 'raw' ? session.rawText : session.text || session.rawText;
   const currentCopy = useRef('');
   currentCopy.current = `${session.id}:${visibleSource}:${visibleText}`;
+  const resultText = useRef<HTMLParagraphElement>(null);
+  const correctButton = useRef<HTMLButtonElement>(null);
+  // Main accepts a correction only for a finished session, and only of the result text (`text || rawText`).
+  const finished = session.status === 'ready' || session.status === 'error' || session.status === 'cancelled';
+  const correctable = showResult && finished && visibleSource === 'result';
+  const correction = useCorrection(correctable ? session.id : '');
   const problemTab = recoverySettings(session);
   const warning = warningMessage(session, language);
   const sources = [{ value: 'result', label: t('home.dictation.polished') }, { value: 'raw', label: t('home.dictation.raw') }] as const;
-  const tabLabel = (tab: SettingsTab) => t(tab === 'ai' ? 'common.page.ai' : 'common.page.basic');
+  const tabLabel = (tab: 'ai' | 'basic') => t(tab === 'ai' ? 'common.page.ai' : 'common.page.basic');
   useEffect(() => { setSource('result'); }, [session.id]);
   useEffect(() => {
     setCopied(false); clearTimeout(copyTimer.current);
@@ -48,6 +55,11 @@ export function DictationPanel({ snapshot, run, openSettings }: { snapshot: AppS
         copyTimer.current = setTimeout(() => setCopied(false), 1800);
       }
     } finally { setCopying(false); }
+  }
+  // Focus goes back to 纠错, which reads 已加入词库 for a moment after a learned correction.
+  function closeCorrection(learned: boolean) {
+    correctButton.current?.focus();
+    correction.close(learned);
   }
   return <section className="dictation-panel" aria-label={t('home.dictation.region')}>
     <Card tone="raised" className="dictation-card">
@@ -78,9 +90,16 @@ export function DictationPanel({ snapshot, run, openSettings }: { snapshot: AppS
     {showResult && <Card className="result-card">
       <div className="result-header">
         {different ? <Segmented options={sources} value={visibleSource} onChange={setSource} ariaLabel={t('home.dictation.viewLabel')} /> : <span className="result-label">{t('home.dictation.thisSession')}</span>}
-        <button type="button" className={`icon-button ${copied ? 'with-label' : ''}`.trim()} disabled={copying} aria-label={t(copied ? 'common.copied' : 'home.dictation.copy')} onClick={() => { void copy(); }}>{copied ? <><Check size={15} /><span>{t('common.copied')}</span></> : <Copy size={15} />}</button>
+        <div className="result-actions">
+          {/* Mouse down must not take focus or collapse the selection in the result text, which prefills the form. */}
+          {correctable && <button ref={correctButton} type="button" className="text-button" onMouseDown={event => event.preventDefault()} onClick={() => correction.open(resultText.current)}>
+            {correction.added ? <><Check size={15} /><span>{t('home.correction.added')}</span></> : t('home.correction.open')}
+          </button>}
+          <button type="button" className={`icon-button ${copied ? 'with-label' : ''}`.trim()} disabled={copying} aria-label={t(copied ? 'common.copied' : 'home.dictation.copy')} onClick={() => { void copy(); }}>{copied ? <><Check size={15} /><span>{t('common.copied')}</span></> : <Copy size={15} />}</button>
+        </div>
       </div>
-      <p className="result-text">{visibleText}</p>
+      <p className="result-text" ref={resultText}>{visibleText}</p>
+      {correctable && correction.draft && <CorrectionForm key={correction.draft.serial} draft={correction.draft} run={run} onClose={closeCorrection} />}
       {warning && <p className="result-note">{warning}{!recover && problemTab && <> <button type="button" className="text-button" onClick={() => openSettings(problemTab)}>{tabLabel(problemTab)}</button></>}</p>}
     </Card>}
   </section>;

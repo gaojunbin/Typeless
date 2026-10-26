@@ -21,6 +21,22 @@ describe('provider protocols', () => {
     expect(url).toBe('https://other.example/api/v1/audio/transcriptions'); expect(init.body).toBeInstanceOf(FormData);
     expect((init.body as FormData).get('model')).toBe('whisper-1'); expect(new Headers(init.headers).has('Content-Type')).toBe(false);
   });
+  it('sends vocabulary as OpenAI recognition hints, and keywords only to gpt-transcribe', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ text: 'recognized' })));
+    const providers = new Providers(fetcher as typeof fetch); const signal = new AbortController().signal;
+    const openai = { ...defaults().asr, kind: 'openai' as const, baseUrl: 'https://other.example/v1' };
+    await providers.transcribe({ ...openai, model: 'whisper-1' }, 'key', wav(), 'auto', signal, ['Claude', 'Typeless']);
+    await providers.transcribe({ ...openai, model: 'gpt-transcribe' }, 'key', wav(), 'auto', signal, ['Claude', 'a<b>']);
+    await providers.transcribe({ ...openai, model: 'whisper-1' }, 'key', wav(), 'auto', signal);
+    const forms = fetcher.mock.calls.map(call => (call as unknown as [string, RequestInit])[1].body as FormData);
+    expect(forms[0].get('prompt')).toBe('Claude, Typeless'); expect(forms[0].getAll('keywords[]')).toEqual([]);
+    expect(forms[1].get('prompt')).toBe('Claude, a<b>'); expect(forms[1].getAll('keywords[]')).toEqual(['Claude']);
+    expect(forms[2].has('prompt')).toBe(false);
+    const mimo = vi.fn(async () => response('recognized'));
+    await new Providers(mimo as typeof fetch).transcribe(defaults().asr, 'key', wav(), 'auto', signal, ['Claude']);
+    const payload = JSON.parse((mimo.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(payload.messages).toHaveLength(1); expect(payload.messages[0].content).toHaveLength(1); expect(JSON.stringify(payload)).not.toContain('Claude');
+  });
   it('rejects truncated output and does not repeat authentication failures', async () => {
     const truncated = new Providers(vi.fn(async () => response('partial', 'length')) as typeof fetch);
     await expect(truncated.transcribe(defaults().asr, 'key', wav(), 'auto', new AbortController().signal)).rejects.toThrow('truncated');
@@ -76,5 +92,22 @@ describe('three editing levels', () => {
     expect(messages[0].content).toContain('Do not translate');
     expect(JSON.parse(messages.at(-1)!.content)).toEqual({ transcript: '嗯，明天用 MiMo，不是今天。' });
     expect(JSON.stringify(messages)).toContain('不是不想改');
+  });
+});
+
+describe('vocabulary in polishing', () => {
+  it('sends vocabulary as data with a context rule and examples only when there is one', async () => {
+    const plain = cleanupMessages(defaults(), '我用云写了脚本');
+    expect(plain[0].content).not.toContain('vocabulary'); expect(JSON.stringify(plain)).not.toContain('Claude');
+    const vocabulary = [{ term: 'Claude', soundsLike: ['云'] }, { term: 'Typeless' }];
+    const fetcher = vi.fn(async () => response('我用 Claude 写了脚本'));
+    const settings = defaults(); settings.cleanup.model = 'text-model';
+    await new Providers(fetcher as typeof fetch).cleanup(settings, 'key', '我用云写了脚本', new AbortController().signal, vocabulary);
+    const body = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.messages[0].content).toContain('the sentence makes more sense with the term'); expect(body.messages[0].content).toContain('Never add a term that was not spoken');
+    expect(body.messages[0].content).not.toContain('Typeless');
+    expect(JSON.parse(body.messages.at(-1).content)).toEqual({ transcript: '我用云写了脚本', vocabulary });
+    const example = body.messages.findIndex((message: { role: string; content: string }) => message.role === 'user' && message.content.includes('阿里云'));
+    expect(body.messages[example + 1]).toEqual({ role: 'assistant', content: '我用 Claude 写了个脚本，部署在阿里云的服务器上。' });
   });
 });

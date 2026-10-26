@@ -1,6 +1,7 @@
 import type { AppSettings } from '../shared/contracts';
 import { endpointBase } from './store';
 import { cleanupMessages } from './cleanup-prompt';
+import type { VocabularyHint } from './vocabulary';
 export { cleanupMessages } from './cleanup-prompt';
 export type Fetcher = typeof fetch;
 export class ProviderError extends Error { constructor(message: string, public code = 'provider') { super(message); } }
@@ -61,7 +62,8 @@ export class Providers {
       throw new ProviderError('The provider could not be reached. Check the endpoint and network. Redirects are not followed.', 'network');
     } finally { clearTimeout(timeout); parent.removeEventListener('abort', cancel); }
   }
-  async transcribe(settings: AppSettings['asr'], key: string, wav: Uint8Array, language: string, signal: AbortSignal) {
+  /** `hints` are vocabulary terms; only the OpenAI-compatible protocol has a documented field for them. */
+  async transcribe(settings: AppSettings['asr'], key: string, wav: Uint8Array, language: string, signal: AbortSignal, hints: string[] = []) {
     if (!key || !settings.model.trim()) throw new ProviderError('Configure the speech provider model and API key first.', 'configuration');
     if (wav.byteLength < 44 || wav.byteLength > 6750000 || Buffer.from(wav.subarray(0, 4)).toString() !== 'RIFF' || Buffer.from(wav.subarray(8, 12)).toString() !== 'WAVE') throw new ProviderError('Expected a valid WAV recording under the upload limit.', 'audio');
     if (settings.kind === 'mimo') {
@@ -75,15 +77,18 @@ export class Providers {
     form.append('file', new Blob([new Uint8Array(wav)], { type: 'audio/wav' }), 'dictation.wav');
     form.append('model', settings.model); form.append('response_format', 'json');
     if (language !== 'auto' && /^[a-z]{2}$/.test(language)) form.append('language', language);
+    if (hints.length) form.append('prompt', hints.join(', '));
+    // gpt-transcribe also takes literal keywords, which must not contain angle brackets or line breaks.
+    if (/^gpt-transcribe/.test(settings.model.trim())) hints.filter(hint => !/[<>\r\n]/.test(hint)).forEach(hint => form.append('keywords[]', hint));
     const data = await this.request(endpoint(settings.baseUrl, 'audio/transcriptions'), { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form }, signal, true);
     if (typeof data.text !== 'string' || data.text.length > 50000) throw new ProviderError('The speech provider returned an invalid transcript.');
     if (!data.text.trim()) throw new ProviderError('No speech was recognized.');
     return data.text.trim();
   }
-  async cleanup(settings: AppSettings, key: string, transcript: string, signal: AbortSignal) {
+  async cleanup(settings: AppSettings, key: string, transcript: string, signal: AbortSignal, vocabulary: VocabularyHint[] = []) {
     if (!settings.cleanup.enabled) return { text: transcript, warning: undefined };
     if (!key || !settings.cleanup.model.trim()) return { text: transcript, warning: 'Text cleanup is not configured. Original transcript is ready.' };
-    const messages = cleanupMessages(settings, transcript);
+    const messages = cleanupMessages(settings, transcript, vocabulary);
     const data = await this.request(endpoint(settings.cleanup.baseUrl, 'chat/completions'), { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: settings.cleanup.model, messages, stream: false }) }, signal, true);
     const text = completionText(data);
     const warning = semanticWarning(transcript, text);

@@ -232,3 +232,65 @@ describe('configuration application', () => {
     expect(controller.snapshot().settings.general.launchAtLogin).toBe(true);
   });
 });
+
+describe('vocabulary in dictation', () => {
+  it('passes recognition hints and relevant words to polishing, and counts each dictation once', async () => {
+    const { sessions, store, provider } = setup();
+    const claude = store.saveVocabulary({ term: 'Claude', soundsLike: ['云'] });
+    store.saveVocabulary({ term: 'Typeless', soundsLike: [] });
+    provider.transcribe = vi.fn(async () => '我用云写了脚本');
+    provider.cleanup = vi.fn(async () => ({ text: '我用 Claude 写了脚本', warning: undefined }));
+    await sessions.toggle(); await finishRecording(sessions);
+    expect([...vi.mocked(provider.transcribe).mock.calls[0][5]!].sort()).toEqual(['Claude', 'Typeless']);
+    expect(vi.mocked(provider.cleanup).mock.calls[0][4]).toEqual([{ term: 'Claude', soundsLike: ['云'] }, { term: 'Typeless' }]);
+    expect(store.vocabulary().find(entry => entry.id === claude.id)).toMatchObject({ hits: 1 });
+    await sessions.retry().catch(() => {});
+    expect(store.vocabulary().find(entry => entry.id === claude.id)).toMatchObject({ hits: 1 });
+    expect(store.vocabulary().find(entry => entry.term === 'Typeless')).toMatchObject({ hits: 0, lastUsedAt: 0 });
+  });
+  it('sends no vocabulary to the polishing step under 不润色 and counts nothing after a cancel', async () => {
+    const { sessions, store, provider } = setup();
+    provider.cleanup = vi.fn(async (settings, _key, raw) => ({ text: settings.cleanup.enabled ? 'clean' : raw, warning: undefined }));
+    store.saveVocabulary({ term: 'raw', soundsLike: [] });
+    store.saveSettings({ cleanup: { enabled: false } });
+    await sessions.toggle(); await finishRecording(sessions);
+    expect(vi.mocked(provider.cleanup).mock.calls[0][4]).toEqual([]);
+    expect(store.vocabulary()[0].hits).toBe(1);
+    store.saveSettings({ cleanup: { enabled: true } });
+    const pending = deferred<{ text: string; warning: undefined }>();
+    provider.cleanup = vi.fn(() => pending.promise);
+    await sessions.toggle(); const processing = finishRecording(sessions);
+    await vi.waitFor(() => expect(sessions.session.status).toBe('polishing'));
+    sessions.cancel(); pending.resolve({ text: 'raw', warning: undefined }); await processing;
+    expect(store.vocabulary()[0].hits).toBe(1);
+  });
+  it('learns a correction from the result and fixes only the selected occurrence', async () => {
+    const { sessions, store, provider, clipboard } = setup();
+    provider.cleanup = vi.fn(async () => ({ text: '我用云写的脚本跑在阿里云上', warning: undefined }));
+    await sessions.toggle(); await finishRecording(sessions);
+    sessions.correct('云', 'Claude', 2);
+    expect(sessions.session.text).toBe('我用Claude写的脚本跑在阿里云上');
+    expect(store.vocabulary()).toMatchObject([{ term: 'Claude', soundsLike: ['云'], hits: 1 }]);
+    expect(clipboard()).toBe('我用云写的脚本跑在阿里云上');
+    sessions.correct('Claude', 'Claude', 2);
+    expect(store.vocabulary()).toMatchObject([{ term: 'Claude', soundsLike: ['云'], hits: 1 }]);
+    sessions.correct('阿里云', 'Alibaba Cloud', 3);
+    expect(sessions.session.text).toBe('我用Claude写的脚本跑在阿里云上');
+    expect(store.vocabulary().map(entry => entry.term).sort()).toEqual(['Alibaba Cloud', 'Claude']);
+    await sessions.toggle();
+    expect(() => sessions.correct('云', 'Claude', 0)).toThrow('No finished result');
+    sessions.cancel();
+  });
+  it('validates vocabulary actions through the controller and exposes the list in snapshots', async () => {
+    const { store, provider, host } = setup();
+    const controller = new Controller(store, provider, { ...host, settingsChanged: vi.fn(async () => {}), publish: vi.fn(), permissions: vi.fn(), openPane: vi.fn(), microphoneTest: vi.fn(), show: vi.fn(), hide: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), copyDiagnostics: vi.fn(async () => {}), checkUpdate: vi.fn(async () => {}), downloadUpdate: vi.fn(async () => {}), openUpdate: vi.fn(async () => {}), installUpdate: vi.fn(async () => {}), openReleasePage: vi.fn(async () => {}) }, 'test');
+    expect(await controller.dispatch({ type: 'vocabulary.save', entry: { term: 'Claude', soundsLike: ['云'] } })).toEqual({ ok: true });
+    const [entry] = controller.snapshot().vocabulary;
+    expect(entry).toMatchObject({ term: 'Claude', soundsLike: ['云'], hits: 0 });
+    expect((await controller.dispatch({ type: 'vocabulary.save', entry: { term: '', soundsLike: [] } })).ok).toBe(false);
+    expect((await controller.dispatch({ type: 'dictation.correct', heard: '云', term: 'Claude', start: -1 })).message).toBe('Invalid correction.');
+    expect((await controller.dispatch({ type: 'dictation.correct', heard: '云', term: 'Claude' })).message).toContain('No finished result');
+    expect(await controller.dispatch({ type: 'vocabulary.delete', id: entry.id })).toEqual({ ok: true });
+    expect(controller.snapshot().vocabulary).toEqual([]);
+  });
+});

@@ -24,6 +24,21 @@ export const languages: readonly Language[] = ['zh', 'en'];
 
 export type DeliveryStatus = 'none' | 'pending' | 'copied' | 'confirmed' | 'dispatched' | 'failed';
 
+/** A word the speaker uses often, with what speech recognition tends to write instead. The id and timestamps keep entries mergeable for a later sync. */
+export interface VocabularyEntry {
+  id: string;
+  term: string;
+  /** Misrecognitions of `term`, such as 云 for Claude; may be empty. */
+  soundsLike: string[];
+  /** Delivered dictations whose final text contained `term`. Only the count is kept, never the text. */
+  hits: number;
+  /** Epoch milliseconds of the last hit; 0 until the term is first used. */
+  lastUsedAt: number;
+  createdAt: number;
+  updatedAt: number;
+}
+export const vocabularyLimits = { entries: 500, length: 64, soundsLike: 8 } as const;
+
 export interface DictationSession {
   id: string;
   status: SessionStatus;
@@ -82,6 +97,8 @@ export interface AppSnapshot {
   session: DictationSession;
   permissions: Permissions;
   update: UpdateState;
+  /** Most used first: hits, then last use, then last edit. */
+  vocabulary: VocabularyEntry[];
 }
 
 export type SettingsPatch = {
@@ -94,6 +111,11 @@ export type AppAction =
   | { type: 'dictation.cancel' }
   | { type: 'dictation.retry' }
   | { type: 'dictation.copy'; source?: 'result' | 'raw' }
+  /** Learns `heard` as a misrecognition of `term`; with `start`, also fixes that occurrence in the shown result. */
+  | { type: 'dictation.correct'; heard: string; term: string; start?: number }
+  /** Without `id`: adds the term or merges `soundsLike` into the entry with the same term. With `id`: replaces that entry's term and variants. */
+  | { type: 'vocabulary.save'; entry: { id?: string; term: string; soundsLike: string[] } }
+  | { type: 'vocabulary.delete'; id: string }
   | { type: 'permissions.refresh' }
   | { type: 'permissions.request'; permission: 'microphone' | 'accessibility' }
   | { type: 'permissions.open'; pane: 'microphone' | 'accessibility' | 'inputMonitoring' }
