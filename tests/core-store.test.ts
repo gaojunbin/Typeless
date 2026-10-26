@@ -53,6 +53,16 @@ describe('configuration and opaque document preservation', () => {
     store.saveSettings({ audio: { interactionSounds: false } });
     expect(new Store(file, crypto).secret('asr')).toBe('original-key');
   });
+  it('mutes output during recording by default, including for documents saved before the setting existed', () => {
+    const { store, file } = create();
+    expect(store.snapshot().settings.audio.muteDuringRecording).toBe(true);
+    writeFileSync(file, JSON.stringify({ settings: { audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: false } }, secrets: {} }));
+    const upgraded = new Store(file, crypto);
+    expect(upgraded.snapshot().settings.audio).toMatchObject({ interactionSounds: false, muteDuringRecording: true });
+    upgraded.saveSettings({ audio: { muteDuringRecording: false } });
+    expect(new Store(file, crypto).snapshot().settings.audio.muteDuringRecording).toBe(false);
+    expect(() => upgraded.saveSettings({ audio: { muteDuringRecording: 'no' as never } })).toThrow('Invalid setting value.');
+  });
   it('defaults to strong editing and only the current configuration sections', () => {
     expect(defaults().writing.strength).toBe('balanced'); expect(defaults().cleanup.enabled).toBe(true);
     expect(Object.keys(defaults()).sort()).toEqual(['asr', 'audio', 'cleanup', 'general', 'shortcut', 'writing']);

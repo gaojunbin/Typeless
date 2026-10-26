@@ -17,8 +17,10 @@ There is no editor inspection, original-target capture, focus-epoch validation, 
 | `context` | `{}` | `{appName:string, windowBounds?:{x,y,width,height}}` from the foreground process, with an empty name if unavailable. macOS adds `windowBounds`, the window-server bounds of that process's frontmost normal-layer window in global top-left-origin points, when one is on screen; Windows omits it. No AX/UIA dependency and no Screen Recording permission (only owner, layer and bounds are read). Optional context must never block recording. |
 | `pasteText` | `{text,clipboardOwner,requestId,deadlineMs}` | `{status:"dispatched"}` after shortcut events are posted. This does not prove the application accepted the paste. |
 | `cancelPaste` | `{requestId}` | Records cancellation independently of the dispatch queue and returns `{cancelled:true}`. Already-dispatched input cannot be recalled. |
+| `muteOutput` | `{}` | `{muted:true}` when the helper muted the default output device now, or already holds a mute from an earlier call (it does not re-read the device then). Otherwise `{muted:false, reason}` with `already_muted` (nothing is held, so a later restore leaves it muted), `unsupported` (no settable mute control), `no_device` or `failed` (nothing is held). Never a protocol error for these conditions. |
+| `restoreOutput` | `{}` | `{restored:true}` when the held device still read muted and was unmuted; `{restored:false}` when nothing was held, the user unmuted it meanwhile, the device is gone or unmuting failed. Always clears the hold. |
 | `requestPermissions` | `{}` | Explicit macOS Accessibility/Input Monitoring prompt; Windows status only. Invoke only from a user permission action. |
-| `stop` | `{}` | Exits the helper. |
+| `stop` | `{}` | Restores a held output mute, then exits the helper. |
 
 `requestId` is a UUID generated once per paste attempt. A cancelled or dispatched ID cannot be reused during that helper process's lifetime. `deadlineMs` is an absolute Unix timestamp in milliseconds, at most ten seconds ahead when checked; the client uses four seconds. Expired and cancelled requests are rejected before dispatch. IDs are consumed before posting input, including uncertain partial dispatch. The UI must never automatically replay uncertain delivery.
 
@@ -28,11 +30,17 @@ macOS uses Cmd+V and checks event-posting permission. Windows uses Ctrl+V; known
 
 Important error codes include `permission_required`, `clipboard_changed`, `cancelled`, `request_expired`, `already_dispatched`, `invalid_request`, `event_unavailable`, and `insertion_uncertain`. Transport failures additionally expose `helper_unavailable`, `native_timeout`, or `native_protocol_error` through `NativeError.code`.
 
+## Output mute while recording
+
+The shell mutes the system's default output while a dictation records, so media playing in the background does not reach the microphone, and restores it when recording ends. The helper holds the device it muted (macOS: the CoreAudio `AudioObjectID` of `kAudioHardwarePropertyDefaultOutputDevice` with the elements whose `kAudioDevicePropertyMute` is settable, the main element or else channels 1 and 2; Windows: the endpoint ID of the default render endpoint for the multimedia role, reopened through `IMMDeviceEnumerator.GetDevice`), so a restore reaches that device even if the default output changed meanwhile. It only unmutes a device it muted itself, and only while that device still reads muted, so a device that was already muted or that the user unmuted during the recording is left alone. Devices without a mute control, such as many HDMI or DisplayPort monitors, are reported as `unsupported` and left unchanged; playback is muted, not paused.
+
+A held mute is restored before the helper exits through `stop` and end of stdin; the macOS helper also restores on SIGTERM, SIGINT and SIGHUP, handled off the main queue so a hung helper still exits when the client kills it. After end of stdin the Windows helper drops requests still queued, restores on its STA worker thread and exits within about two seconds even if that stalls. Electron terminates the Windows helper outright on quit, so the shell sends `restoreOutput` and waits for it (at most one second) before stopping the helper. A helper that crashes, or a Windows helper killed after `native_timeout`, while holding a mute loses the hold: the output then stays muted until the user unmutes it.
+
 ## Events and client API
 
 Events are `shortcut:{action:"toggle"}` and `ready:{platform}`. Isolated Fn/Right Alt release toggles recording. Chords suppress the candidate, never the original OS event. No focus polling or target-change events remain. OS shortcut conflicts are not changed automatically.
 
-`NativeClient.context()` returns an application label. `NativeClient.paste(text,{clipboardOwner,signal?})` generates the request ID, propagates cancellation through `cancelPaste`, and returns `{ok,status?,code?,message?}`. The protocol reserves `confirmed` as a possible result status, but current helpers report only `dispatched`.
+`NativeClient.context()` returns an application label. `NativeClient.muteOutput()` and `NativeClient.restoreOutput()` relay the two output methods with a two-second timeout; `electron/output-mute.ts` decides when to call them. `NativeClient.paste(text,{clipboardOwner,signal?})` generates the request ID, propagates cancellation through `cancelPaste`, and returns `{ok,status?,code?,message?}`. The protocol reserves `confirmed` as a possible result status, but current helpers report only `dispatched`.
 
 The default Windows client starts static PowerShell `-Command` code and reads the bundled C# source path from `TYPELESS_NATIVE_SOURCE`. It does not change execution policy or require administrator privileges. The standalone `launch.ps1` is a development alternative and may be blocked by script policy. UI Automation assemblies are no longer required.
 
@@ -46,7 +54,7 @@ native/bin/typeless-native --self-test
 node scripts/verify-windows-helper.mjs
 ```
 
-The macOS self-test checks isolated shortcut recognition, chord exclusion, cancellation, request expiry, and duplicate dispatch rejection without installing event taps, querying a target, or posting keyboard events. Native runtime acceptance is separate from these tests.
+The macOS self-test checks isolated shortcut recognition, chord exclusion, cancellation, request expiry, duplicate dispatch rejection and the output-mute policy (against a fake device) without installing event taps, querying a target, posting keyboard events or touching the real output device; it prints `{"passed":true,"selfTest":"shortcut-paste-and-mute-policy"}`. Native runtime acceptance is separate from these tests.
 
 The Windows verifier compiles the exact helper against .NET Framework 4.8 references with C# 5 for Windows PowerShell 5.1 syntax compatibility. It uses project-local `.cache/dotnet` when available, keeps state/packages/output under `.cache`, disables SDK certificate generation, and does not change system PATH. Successful macOS cross-compilation does not establish Windows startup, shortcut behavior, terminal keybinding compatibility, clipboard format handling, or visible paste acceptance.
 
@@ -74,7 +82,7 @@ Permission state belongs to the actual running helper's execution identity. A de
 For a separate, permission-preserving event-tap recovery check:
 
 ```sh
-xcrun swiftc -D NATIVE_TESTS -target arm64-apple-macos13.0 -module-cache-path .cache/swift-modules native/macos/Main.swift native/macos/Paste.swift native/macos/TapRecognizer.swift -framework AppKit -framework ApplicationServices -o .cache/native-shortcut-tests
+xcrun swiftc -D NATIVE_TESTS -target arm64-apple-macos13.0 -module-cache-path .cache/swift-modules native/macos/Main.swift native/macos/Paste.swift native/macos/TapRecognizer.swift native/macos/OutputMute.swift -framework AppKit -framework ApplicationServices -framework CoreAudio -o .cache/native-shortcut-tests
 .cache/native-shortcut-tests --self-test-tap-recovery
 npx vitest run tests/native-client.test.ts
 ```

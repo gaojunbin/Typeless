@@ -20,6 +20,7 @@ Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-rec
 - **One key, anywhere.** Tap Fn on macOS or Right Alt on Windows to start and stop. A fallback chord (Command/Ctrl+Shift+Space) is always available.
 - **Your own models.** Speech recognition through Xiaomi MiMo or any OpenAI-compatible endpoint; polishing through any OpenAI-compatible chat model. Keys are encrypted with the system's secure storage.
 - **Polishing you control.** None, light or strong, plus personal instructions for names and terms. If polishing fails, the raw transcript is still delivered.
+- **Quiet while you speak.** Recording mutes the computer's sound output and restores it afterwards, so background music or video stays out of the transcript.
 - **Copy first, paste optional.** Every result lands on the clipboard; automatic paste sends Command/Ctrl+V to the current app and never presses Enter.
 - **Built-in updates.** Settings → About checks GitHub Releases. On macOS one click installs the update in place and reopens Typeless, and permissions survive because every release is sealed with the same project certificate.
 - **Chinese or English.** Chinese is the default; switch on the welcome screen or under Settings → General → Language.

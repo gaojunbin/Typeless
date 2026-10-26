@@ -10,6 +10,7 @@ import { Controller } from './controller';
 import { NativeClient, type NativeStatus } from './native-client';
 import { VoiceOverlay, voiceWindowSize } from './voice-overlay';
 import { EscapeCancel } from './escape-cancel';
+import { OutputMute } from './output-mute';
 import { ClipboardDelivery } from './clipboard-delivery';
 import { UpdateChecker } from './update-checker';
 import { installMacUpdate } from './update-installer';
@@ -68,6 +69,8 @@ if (devUrl && !['localhost', '127.0.0.1'].includes(new URL(devUrl).hostname)) th
 const native = new NativeClient({ onShortcut: () => shortcutPressed(), onStatus: status => { if (!quitting) { nativeAvailable = !status.error; recordNativeStatus(status); } } });
 const escapeCancel = new EscapeCancel(globalShortcut, () => { void controller?.dispatch({ type: 'dictation.cancel' }); });
 const delivery = new ClipboardDelivery((text, options) => native.paste(text, options));
+const outputMute = new OutputMute(native);
+let outputReleased = false;
 function shortcutPressed() {
   if (quitting || !store || !controller) return;
   // The setup guide only has to prove that presses arrive, so it must not start a dictation session.
@@ -197,6 +200,7 @@ function diagnosticsReport(): string {
     `shortcut: ${JSON.stringify(snapshot.settings.shortcut)}`,
     `general: ${JSON.stringify(snapshot.settings.general)}`,
     `audio.deviceId: ${snapshot.settings.audio.deviceId}`,
+    `output mute: ${JSON.stringify(outputMute.last)}`,
     `permissions: ${JSON.stringify(snapshot.permissions)}`,
     `native status history (${statusHistory.length}):`,
     ...statusHistory.map(item => JSON.stringify(item)),
@@ -269,6 +273,7 @@ else {
         for (const window of [mainWindow, overlay]) if (!window.isDestroyed()) window.webContents.send('typeless:snapshot', snapshot);
         voiceOverlay.publish(snapshot.session);
         escapeCancel.sync(snapshot.session.status);
+        outputMute.sync(snapshot.session.status, snapshot.settings.audio);
         refreshTrayMenu();
       },
       permissions, openPane, microphoneTest: active => { micTestUntil = active ? Date.now() + 120_000 : 0; },
@@ -344,6 +349,13 @@ else {
 }
 app.on('activate', () => { showMain(); void refreshShortcutHealth(); });
 app.on('window-all-closed', () => { /* Keep the tray and hidden capture renderer alive. */ });
-app.on('before-quit', () => {
-  quitting = true; clearInterval(shortcutHealthTimer); clearInterval(updateTimer); updateChecker?.cancel(); voiceOverlay?.hide(); controller?.sessions.cancel(); native.stop(); globalShortcut.unregisterAll();
+app.on('before-quit', event => {
+  if (!quitting) { quitting = true; clearInterval(shortcutHealthTimer); clearInterval(updateTimer); updateChecker?.cancel(); voiceOverlay?.hide(); controller?.sessions.cancel(); }
+  // Windows terminates the helper outright, so output muted for a recording is restored before the helper stops.
+  if (!outputReleased) {
+    outputReleased = true;
+    const restored = outputMute.release();
+    if (outputMute.held) { event.preventDefault(); void restored.finally(() => app.quit()); return; }
+  }
+  native.stop(); globalShortcut.unregisterAll();
 });

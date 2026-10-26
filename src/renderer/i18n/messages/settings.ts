@@ -55,6 +55,8 @@ export const settings = defineMessages({
     'settings.audio.systemDefault': '系统默认',
     'settings.audio.microphoneIndex': '麦克风 {index}',
     'settings.audio.sounds': '录音提示音',
+    'settings.audio.mute.label': '录音时静音其他声音',
+    'settings.audio.mute.description': '录音期间静音电脑的声音输出，结束后恢复原状。',
 
     'settings.general.group': '通用',
     'settings.general.autoInsert.label': '完成后自动粘贴',
@@ -161,6 +163,8 @@ export const settings = defineMessages({
     'settings.audio.systemDefault': 'System default',
     'settings.audio.microphoneIndex': 'Microphone {index}',
     'settings.audio.sounds': 'Recording sounds',
+    'settings.audio.mute.label': 'Mute other audio while recording',
+    'settings.audio.mute.description': 'Silences the computer’s sound output while you record, then restores it.',
 
     'settings.general.group': 'General',
     'settings.general.autoInsert.label': 'Paste automatically when done',

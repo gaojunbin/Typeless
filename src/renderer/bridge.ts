@@ -9,7 +9,7 @@ function previewBridge(): TypelessBridge {
       asr: { kind: 'mimo', baseUrl: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-asr', hasApiKey: false },
       cleanup: { enabled: true, baseUrl: 'https://api.openai.com/v1', model: '', hasApiKey: false },
       writing: { strength: 'balanced', instructions: '', language: 'auto' },
-      audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: true },
+      audio: { deviceId: 'default', maxDurationSeconds: 60, interactionSounds: true, muteDuringRecording: true },
       shortcut: { primary: 'Fn', fallback: 'CommandOrControl+Shift+Space' },
       // The browser preview opens the shell; #setup previews the first-run guide instead.
       general: { launchAtLogin: false, autoInsert: true, setupCompleted: location.hash !== '#setup', language: 'zh' },

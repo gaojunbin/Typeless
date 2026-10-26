@@ -31,6 +31,11 @@ export interface NativeInsertResult {
   message?: string;
   code?: string;
 }
+/** `muted` is true only while the helper holds a mute it applied itself; see native/PROTOCOL.md. */
+export interface OutputMuteResult {
+  muted: boolean;
+  reason?: 'already_muted' | 'unsupported' | 'no_device' | 'failed';
+}
 interface Options {
   onShortcut: () => void;
   onStatus?: (status: NativeStatus) => void;
@@ -210,6 +215,10 @@ Add-Type -Path $env:TYPELESS_NATIVE_SOURCE -ReferencedAssemblies $references;
       return { ok: false, message, code: error instanceof NativeError ? error.code : 'native_error' };
     } finally { signal?.removeEventListener('abort', cancel); }
   }
+
+  muteOutput(): Promise<OutputMuteResult> { return this.request<OutputMuteResult>('muteOutput', {}, 2000); }
+
+  restoreOutput(): Promise<{ restored: boolean }> { return this.request<{ restored: boolean }>('restoreOutput', {}, 2000); }
 
   requestAccessibility(): Promise<NativeStatus> { return this.request<NativeStatus>('requestPermissions'); }
 

@@ -20,6 +20,8 @@ public static class TypelessNative {
     private static string Binding = "right-alt";
     private static bool AltDown, Candidate;
     private static long Started;
+    private static string HeldEndpoint;
+    private static volatile bool Closing;
     private delegate IntPtr HookProc(int code, IntPtr message, IntPtr data);
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardData { public uint vk, scan, flags, time; public UIntPtr extra; }
     [StructLayout(LayoutKind.Sequential)] private struct KeyInput { public ushort vk, scan; public uint flags, time; public UIntPtr extra; }
@@ -34,6 +36,33 @@ public static class TypelessNative {
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", SetLastError=true)] private static extern uint SendInput(uint count, Input[] inputs, int size);
+    // Core Audio interop: each interface declares every vtable slot, in mmdeviceapi.h / endpointvolume.h order, up to the last method called.
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] private class MMDeviceEnumerator { }
+    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] private interface IMMDeviceEnumerator {
+        [PreserveSig] int EnumAudioEndpoints(int flow, uint states, out IntPtr devices);
+        [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice device);
+        [PreserveSig] int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+    }
+    [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] private interface IMMDevice {
+        [PreserveSig] int Activate(ref Guid iid, uint context, IntPtr parameters, [MarshalAs(UnmanagedType.IUnknown)] out object result);
+        [PreserveSig] int OpenPropertyStore(uint access, out IntPtr store);
+        [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+    }
+    [ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] private interface IAudioEndpointVolume {
+        [PreserveSig] int RegisterControlChangeNotify(IntPtr callback);
+        [PreserveSig] int UnregisterControlChangeNotify(IntPtr callback);
+        [PreserveSig] int GetChannelCount(out uint count);
+        [PreserveSig] int SetMasterVolumeLevel(float decibels, ref Guid context);
+        [PreserveSig] int SetMasterVolumeLevelScalar(float level, ref Guid context);
+        [PreserveSig] int GetMasterVolumeLevel(out float decibels);
+        [PreserveSig] int GetMasterVolumeLevelScalar(out float level);
+        [PreserveSig] int SetChannelVolumeLevel(uint channel, float decibels, ref Guid context);
+        [PreserveSig] int SetChannelVolumeLevelScalar(uint channel, float level, ref Guid context);
+        [PreserveSig] int GetChannelVolumeLevel(uint channel, out float decibels);
+        [PreserveSig] int GetChannelVolumeLevelScalar(uint channel, out float level);
+        [PreserveSig] int SetMute(int mute, ref Guid context);
+        [PreserveSig] int GetMute(out int mute);
+    }
 
     private static Dictionary<string,object> Obj(params object[] values) { var result = new Dictionary<string,object>(); for(int i=0;i<values.Length;i+=2) result[(string)values[i]]=values[i+1]; return result; }
     private static void Emit(Dictionary<string,object> value) { lock(OutputGate) { Console.Out.WriteLine(Json.Serialize(value)); Console.Out.Flush(); } }
@@ -91,13 +120,49 @@ public static class TypelessNative {
         if(SendInput((uint)keys.Count,keys.ToArray(),Marshal.SizeOf(typeof(Input)))!=keys.Count)throw new Exception("insertion_uncertain");
         return Obj("status","dispatched");
     }
+    private static void Free(object value) { if(value!=null && Marshal.IsComObject(value)) Marshal.ReleaseComObject(value); }
+    private static IMMDeviceEnumerator Devices() { try { return (IMMDeviceEnumerator)new MMDeviceEnumerator(); } catch { return null; } }
+    private static IAudioEndpointVolume Volume(IMMDevice device) {
+        Guid iid=typeof(IAudioEndpointVolume).GUID; object raw;
+        if(device.Activate(ref iid,0x17,IntPtr.Zero,out raw)<0) { Free(raw); return null; }
+        var volume=raw as IAudioEndpointVolume; if(volume==null)Free(raw); return volume;
+    }
+    private static Dictionary<string,object> NotMuted(string reason) { return Obj("muted",false,"reason",reason); }
+    // The endpoint ID is held, not the default role, so restore reaches the muted device even if the default output changes meanwhile.
+    private static Dictionary<string,object> MuteOutput() {
+        if(HeldEndpoint!=null)return Obj("muted",true);
+        IMMDeviceEnumerator devices=Devices(); IMMDevice device=null; IAudioEndpointVolume volume=null;
+        try {
+            if(devices==null)return NotMuted("unsupported");
+            if(devices.GetDefaultAudioEndpoint(0,1,out device)<0||device==null)return NotMuted("no_device");
+            int muted; string id; Guid context=Guid.Empty; volume=Volume(device);
+            if(volume==null||volume.GetMute(out muted)<0)return NotMuted("unsupported");
+            if(muted!=0)return NotMuted("already_muted");
+            if(device.GetId(out id)<0||String.IsNullOrEmpty(id)||volume.SetMute(1,ref context)<0)return NotMuted("failed");
+            HeldEndpoint=id; return Obj("muted",true);
+        } catch { return NotMuted("failed"); }
+        finally { Free(volume); Free(device); Free(devices); }
+    }
+    private static bool RestoreOutput() {
+        string id=HeldEndpoint; HeldEndpoint=null;
+        if(id==null)return false;
+        IMMDeviceEnumerator devices=Devices(); IMMDevice device=null; IAudioEndpointVolume volume=null;
+        try {
+            if(devices==null||devices.GetDevice(id,out device)<0||device==null)return false;
+            int muted; Guid context=Guid.Empty; volume=Volume(device);
+            return volume!=null&&volume.GetMute(out muted)>=0&&muted!=0&&volume.SetMute(0,ref context)>=0;
+        } catch { return false; }
+        finally { Free(volume); Free(device); Free(devices); }
+    }
     private static Dictionary<string,object> Handle(string method, Dictionary<string,object> args) {
         if(method=="status" || method=="requestPermissions")return Status();
         if(method=="configureShortcut") { string binding=Convert.ToString(args["binding"]); if(binding!="right-alt" && binding!="disabled") throw new Exception("unsupported_shortcut"); Binding=binding; Candidate=false; return Obj("binding",binding,"available",binding=="disabled" || Hook!=IntPtr.Zero); }
         if(method=="context")return Obj("appName",AppName());
         if(method=="cancelPaste")return Obj("cancelled",true);
         if(method=="pasteText")return Paste(args);
-        if(method=="stop") {Environment.Exit(0);return Obj("stopped",true);}
+        if(method=="muteOutput")return MuteOutput();
+        if(method=="restoreOutput")return Obj("restored",RestoreOutput());
+        if(method=="stop") {RestoreOutput();Environment.Exit(0);return Obj("stopped",true);}
         throw new Exception("unknown_method");
     }
     [STAThread] public static void Run() {
@@ -106,10 +171,12 @@ public static class TypelessNative {
         var worker=new Thread(()=> {
             var parser=new JavaScriptSerializer();
             foreach(string line in Requests.GetConsumingEnumerable()) {
+                if(Closing)continue;
                 object id=null;
                 try {var request=parser.Deserialize<Dictionary<string,object>>(line); if(request.ContainsKey("id"))id=request["id"]; var args=request.ContainsKey("params")?request["params"] as Dictionary<string,object>:new Dictionary<string,object>(); Emit(Obj("id",id,"result",Handle(Convert.ToString(request["method"]),args??new Dictionary<string,object>())));}
                 catch(Exception error) {string code=error.Message; if(code.Length>80||code.IndexOf(' ')>=0)code="native_error"; Emit(Obj("id",id,"error",Obj("code",code,"message","Paste could not be confirmed. The result remains on the clipboard; check the foreground application before retrying.")));}
             }
+            RestoreOutput();
         }); worker.SetApartmentState(ApartmentState.STA);worker.IsBackground=true;worker.Start();
         var reader=new Thread(()=> {
             var parser=new JavaScriptSerializer(); string line;
@@ -123,7 +190,8 @@ public static class TypelessNative {
                 } catch { }
                 Requests.Add(line);
             }
-            Requests.CompleteAdding();Environment.Exit(0);
+            // Without a client, queued requests (a paste included) are dropped; the worker restores a held mute on its STA thread, and the exit follows even if it stalls.
+            Closing=true;Requests.CompleteAdding();worker.Join(2000);Environment.Exit(0);
         });reader.IsBackground=true;reader.Start();
         Application.Run();if(Hook!=IntPtr.Zero)UnhookWindowsHookEx(Hook);
     }

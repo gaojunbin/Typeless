@@ -98,6 +98,7 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
         {devices.filter(device => device.deviceId !== 'default').map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || t('settings.audio.microphoneIndex', { index: index + 1 })}</option>)}
       </SelectRow>
       <SwitchRow label={t('settings.audio.sounds')} saved={settings.audio.interactionSounds} save={interactionSounds => run({ type: 'settings.save', patch: { audio: { interactionSounds } } })} />
+      <SwitchRow label={t('settings.audio.mute.label')} description={t('settings.audio.mute.description')} saved={settings.audio.muteDuringRecording} save={muteDuringRecording => run({ type: 'settings.save', patch: { audio: { muteDuringRecording } } })} />
     </SectionGroup>
     <SectionGroup icon={<Laptop {...groupIcon} />} title={t('settings.general.group')}>
       <LanguageRow snapshot={snapshot} run={run} />

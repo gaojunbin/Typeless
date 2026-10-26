@@ -221,7 +221,7 @@ Labels must be `<label htmlFor>` so `getByLabel(/^语音服务地址/)` etc. res
 Header: "基本设置", subtitle "快捷键、麦克风、粘贴行为与系统权限。" Groups in this order:
 
 1. `Keyboard` 快捷键: row 主要快捷键 (description "按一下开始，再按一下结束。" ; control = native select labelled by the row label with options `{Fn|RightAlt}` "Fn · 按一下开始 / 结束" and `Disabled` "关闭"; status under control = `StatusBadge` from `shortcutStatusMessages`), row 备用快捷键 (select of presets; status badge 已就绪/未注册).
-2. `Mic` 音频: 麦克风 (select of devices), 录音提示音 (switch).
+2. `Mic` 音频: 麦克风 (select of devices), 录音提示音 (switch), 录音时静音其他声音 (switch with a description, since section 16).
 3. `Laptop` 通用: 完成后自动粘贴 (switch, description "把结果粘贴到当前前台应用，不会按下回车。"), 登录系统时启动 (switch).
 4. `ShieldCheck` 系统权限: rows 麦克风, 辅助功能 (macOS) / 系统输入助手 (Windows), 输入监控 (macOS only). Control = `StatusBadge` (ok 已授权/已就绪, warn 待授权/不可用, and 未单独授权 for 输入监控 as today) + `.secondary.small` action button ("授权" / "打开系统设置") where one exists today.
 
@@ -278,7 +278,7 @@ Cross-file contract: `main.tsx` renders `<Sidebar page onNavigate snapshot />` a
 - `nav[aria-label="主导航"]` > `role=tablist` with three `role=tab` (`首页`, `AI 配置`, `基本设置`) since section 13, `aria-selected`; one `role=tabpanel` rendered.
 - Home: `button` "配置语音" / "开始听写" / "结束听写"; `.dictation-panel [role="alert"]` with buttons "基本设置" / "AI 配置" / "重试"; `role=group[name="听写结果视图"]` with buttons "整理后"/"原文" carrying `aria-pressed`; `.result-text`; buttons "复制本次听写" then "已复制".
 - AI 配置: `form.provider-panel` with `h2` "语音识别"/"文字润色"; labels 语音服务地址, 语音模型, 语音 API 密钥, 润色服务地址, 润色模型, 润色 API 密钥; button "保存"; no button named "保存设置"; `role=alert` with 保存失败 text on failure.
-- 基本设置: `switch` named 完成后自动粘贴, 录音提示音, 登录系统时启动; selects labelled 主要快捷键 (value `Disabled` option) and 备用快捷键; `.save-status`.
+- 基本设置: `switch` named 完成后自动粘贴, 录音提示音, 录音时静音其他声音 (since section 16), 登录系统时启动; selects labelled 主要快捷键 (value `Disabled` option) and 备用快捷键; `.save-status`.
 - 文字润色 form on AI 配置 (since section 13): buttons 不润色/轻度润色/强力润色 with `aria-pressed`; textarea labelled 个人表达说明; `.writing-inactive` containing "开启润色后生效，说明会保留。".
 - Overlay: `.voice-pill .wave`, `.voice-pill button` (2 while recording, 1 while processing), button "取消听写" in both states, "完成听写" while recording, `.voice-loading i` carrying a CSS animation while processing, `button` "查看听写问题" in recovery.
 
@@ -562,3 +562,20 @@ Requested after 2.3.0: the 关于 row should finish an update by itself instead 
 - Desktop e2e: in a development build the install attempt must fail with `not_installed` and leave **重试安装** and **打开安装包** in place.
 - `npm run test:update-mac`: copies the packaged app under `.local/`, seals a version-9.0.0 twin ad hoc, serves it as a release on loopback, and asserts that the copy installs it over itself, unmounts, removes the image and comes back as one relaunched process in the isolated profile.
 
+## 16. Mute other audio while recording (2026-10-26)
+
+Requested after 2.4.3: music or video playing in the background must not reach the microphone. This adds one setting, `audio.muteDuringRecording` (default `true`, also for settings files written before it existed), and no new page or `AppAction`.
+
+### 16.1 Row
+
+In the 音频 group, after 录音提示音: a switch row labelled **录音时静音其他声音** (`Mute other audio while recording`) with the description "录音期间静音电脑的声音输出，结束后恢复原状。" (`Silences the computer’s sound output while you record, then restores it.`). It autosaves like the other switches and is a test hook: `getByRole('switch', { name: '录音时静音其他声音' })`.
+
+### 16.2 Mechanism (main process)
+
+`electron/output-mute.ts` (`OutputMute`) is synced from every published snapshot. The output is wanted muted exactly while the session is `recording` and the setting is on; with 录音提示音 on, the mute request waits 300 ms so the start cue is heard. Leaving `recording` for any status (transcribing, cancelled, error) sends the restore at once, in the same publish that lets the renderer play the stop cue. Requests are serialized, every mute request is followed by a restore request, and a recording that ends before its mute went out sends neither. The native helper (`muteOutput` / `restoreOutput`, see `native/PROTOCOL.md`) mutes the default output device only when it is not muted already and unmutes only the device it muted, only while it is still muted. Quitting during a recording restores the output before the helper is stopped, waiting at most one second; the macOS helper also restores on `stop`, end of input and termination signals. The diagnostics report carries the last helper answers as `output mute: {"mute":…,"restore":…}`.
+
+### 16.3 Acceptance
+
+- Unit: `tests/output-mute.test.ts` (timing, cue guard, serialization, pairing, quit release with an unresponsive helper), `tests/core-store.test.ts` (default and upgrade), `tests/native-client.test.ts` (request relay).
+- Native: the helper self-test covers the mute policy against a fake device.
+- Desktop e2e: the switch autosaves off and on; after a recording the diagnostics report shows answers from the real helper, and on macOS the system output mute reads the same as before the recording.

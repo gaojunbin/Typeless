@@ -13,7 +13,8 @@ if (process.platform === 'darwin') {
   mkdirSync(cache, { recursive: true });
   const result = spawnSync('xcrun', ['swiftc', '-O', '-target', `${architecture}-apple-macos13.0`, '-module-cache-path', cache,
     resolve(root, 'native/macos/Main.swift'), resolve(root, 'native/macos/Paste.swift'), resolve(root, 'native/macos/TapRecognizer.swift'),
-    '-framework', 'AppKit', '-framework', 'ApplicationServices',
+    resolve(root, 'native/macos/OutputMute.swift'),
+    '-framework', 'AppKit', '-framework', 'ApplicationServices', '-framework', 'CoreAudio',
     '-o', resolve(out, 'typeless-native')], { cwd: root, stdio: 'inherit' });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;

@@ -1,6 +1,6 @@
 # Typeless: current product scope and implementation plan
 
-Date: 2026-09-18, revised 2026-10-21. Target version: 2.4.3. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
+Date: 2026-09-18, revised 2026-10-26. Target version: 2.4.4. This document records the reduced product decision. Actual package availability and completed acceptance belong in [Validation](VALIDATION.md), not in this proposal.
 
 ## Product direction
 
@@ -16,7 +16,7 @@ The [complete Quickstart review](research/quickstart-review.md), with [dictation
 | --- | --- | --- |
 | Home | Dictation control, current result with its recovery actions, and a three-row status list | No setting is edited here; its cards and buttons navigate to the configuration destinations |
 | AI configuration | Independent speech and polishing provider forms, each with endpoint, model, credential, and speech protocol where needed | One explicit Save per provider submits its fields atomically; failed saves retain the draft and show an error |
-| Basic settings | Microphone, primary/fallback shortcuts, automatic paste, sounds, login startup, permission status with its recovery controls, the setup guide and a diagnostics copy | Switches/selectors save immediately; text saves on blur or Enter; failures expose retry |
+| Basic settings | Microphone, primary/fallback shortcuts, automatic paste, sounds, muting other audio while recording, login startup, permission status with its recovery controls, the setup guide and a diagnostics copy | Switches/selectors save immediately; text saves on blur or Enter; failures expose retry |
 | Writing style | Unchanged transcription, light polishing, strong polishing, optional personal instructions | Level saves immediately; multiline instructions save on blur or Command/Ctrl+Enter |
 | First-run setup guide | Welcome, permission cards with live status, microphone test, shortcut test, completion checklist | Requests system permissions and saves only the chosen microphone and the completion flag; leaving or skipping marks setup complete |
 
@@ -54,7 +54,7 @@ Every completed result replaces the clipboard and stays there. Automatic paste d
 
 Cancellation aborts capture and provider work, fences late results, and prevents superseded jobs from overwriting a newer clipboard result. It cannot undo a copy or paste already completed. An uncertain paste is never automatically dispatched twice. Clipboard-copy failures are separate errors; polishing failure instead preserves the original transcript, copies it, and leaves a warning.
 
-The recorder produces mono 16 kHz PCM16 WAV with a 60-second default cap. Silence alone does not terminate a thinking pause. Recognition failures can retain only the active audio in memory for bounded retry; success, cancellation, another session or quitting releases it.
+The recorder produces mono 16 kHz PCM16 WAV with a 60-second default cap. Silence alone does not terminate a thinking pause. While recording, the default system output is muted (after the start cue) so background media does not reach the microphone, and restored when recording ends; output that was already muted, or that the user unmutes meanwhile, is left as it is, and a switch under basic settings turns this off. Recognition failures can retain only the active audio in memory for bounded retry; success, cancellation, another session or quitting releases it.
 
 ## Providers and writing behavior
 
@@ -96,6 +96,6 @@ Implementation and validation are separate. Required checks include:
 
 Unit and mock-provider Electron tests exercise contracts and application behavior. Native editor tests, physical shortcut tests, real microphones, live providers, Windows runtime and packaged installation are separate acceptance boundaries. Test scripts and proposed checks must not be reported as completed results until executed.
 
-Version 2.4.3 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest. On macOS it then installs in place (mounts the image, verifies the bundle, requires the same signing certificate as the installed copy, swaps it into the Applications folder, unmounts) and relaunches. Releases are sealed with one fixed self-signed project certificate rather than ad hoc, so the system permission grants survive upgrades; the certificate stays in the maintainer's keychain and only its name is in the repository. Gatekeeper still warns on first install because no Apple certificate is involved. On Windows it opens the archive for a manual install. The [development guide](DEVELOPMENT.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
+Version 2.4.4 packaging targets macOS Apple silicon DMG and Windows x64 portable ZIP. Package builds do not imply signing, notarization, publication or platform-runtime acceptance. The application checks GitHub Releases for a newer version and downloads its installer on request, verifying the published digest. On macOS it then installs in place (mounts the image, verifies the bundle, requires the same signing certificate as the installed copy, swaps it into the Applications folder, unmounts) and relaunches. Releases are sealed with one fixed self-signed project certificate rather than ad hoc, so the system permission grants survive upgrades; the certificate stays in the maintainer's keychain and only its name is in the repository. Gatekeeper still warns on first install because no Apple certificate is involved. On Windows it opens the archive for a manual install. The [development guide](DEVELOPMENT.md) supplies commands and output paths; [Validation](VALIDATION.md) records the evidence.
 
 Provider cost is the chosen ASR usage plus the selected text model's input/output usage when polishing is enabled. No fixed price or latency is promised. Direct provider access requires no application-hosting backend.

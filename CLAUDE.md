@@ -48,6 +48,7 @@ main (electron/main.ts) ── Controller (electron/controller.ts)
    ├── ClipboardDelivery (electron/clipboard-delivery.ts) serialized copy, owner marker
    ├── VoiceOverlay (electron/voice-overlay.ts) capsule window placement/lifecycle
    ├── UpdateChecker (electron/update-checker.ts) GitHub latest-release check + installer download
+   ├── OutputMute (electron/output-mute.ts) mutes the system output while recording, through the helper
    └── NativeClient (electron/native-client.ts) ── JSON-lines over stdio ──> native helper
                                                     macOS: native/bin/typeless-native (Swift)
                                                     Windows: powershell Add-Type native/windows/Helper.cs (C# 5)
@@ -81,7 +82,7 @@ Other invariants baked into `Sessions`:
 
 ### Native helper protocol
 
-`native/PROTOCOL.md` is authoritative. One JSON object per line on stdio; requests `{id,method,params}`, responses `{id,result|error}`, events `{event,params}` (`shortcut`, `ready`). Methods: `status`, `configureShortcut`, `context`, `pasteText`, `cancelPaste`, `requestPermissions`, `stop`. Paste requests carry a UUID `requestId` and an absolute `deadlineMs` (client uses +4 s); consumed or expired IDs are rejected.
+`native/PROTOCOL.md` is authoritative. One JSON object per line on stdio; requests `{id,method,params}`, responses `{id,result|error}`, events `{event,params}` (`shortcut`, `ready`). Methods: `status`, `configureShortcut`, `context`, `pasteText`, `cancelPaste`, `muteOutput`, `restoreOutput`, `requestPermissions`, `stop`. `OutputMute` asks for the mute 300 ms into `recording` (after the start cue) when `audio.muteDuringRecording` is on and restores as soon as the status leaves `recording`; the helper only unmutes a device it muted itself and restores a held mute on `stop` and end of input (macOS also on termination signals), and main awaits the restore (at most 1 s) in `before-quit` because Windows kills the helper outright. Paste requests carry a UUID `requestId` and an absolute `deadlineMs` (client uses +4 s); consumed or expired IDs are rejected.
 
 `NativeClient` restarts a dead helper on the next `status()` poll (main polls every 2 s and on resume/unlock), kills a hung one after `native_timeout`, and restores the last configured binding. macOS shortcut is an isolated Fn tap via a listen-only session event tap (`Main.swift` + `TapRecognizer.swift`); Windows is an isolated Right Alt via a low-level keyboard hook. Chords, autorepeat, holds > 2 s and rapid re-taps do not trigger. Electron `globalShortcut` handles the fallback chord independently.
 

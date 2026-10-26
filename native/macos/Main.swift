@@ -8,7 +8,8 @@ struct HelperError: Error {
 }
 func emit(_ value: [String: Any]) {
     guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), let string = String(data: data, encoding: .utf8) else { return }
-    FileHandle.standardOutput.write(Data((string + "\n").utf8))
+    // A client that is gone must not end the helper here: end of input restores a held output mute first.
+    try? FileHandle.standardOutput.write(contentsOf: Data((string + "\n").utf8))
 }
 final class ShortcutMonitor {
     var binding = "fn"
@@ -111,8 +112,8 @@ final class ShortcutMonitor {
 struct NativeHelper {
     static func main() {
         if CommandLine.arguments.contains("--self-test") {
-            let passed = runTapSelfTest() && runPasteSelfTest()
-            emit(["selfTest": "shortcut-and-paste-policy", "passed": passed])
+            let passed = runTapSelfTest() && runPasteSelfTest() && runMuteSelfTest()
+            emit(["selfTest": "shortcut-paste-and-mute-policy", "passed": passed])
             exit(passed ? 0 : 1)
         }
         let application = NSApplication.shared
@@ -125,6 +126,7 @@ struct NativeHelper {
             exit(result["passed"] as? Bool == true ? 0 : 2)
         }
         #endif
+        restoreOutputOnTermination()
         shortcuts.reconcile()
         let healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in shortcuts.reconcile() }
         RunLoop.main.add(healthTimer, forMode: .common)
@@ -155,7 +157,9 @@ struct NativeHelper {
                         case "context": result = currentContext()
                         case "cancelPaste": result = ["cancelled": true]
                         case "pasteText": result = try pasteText(params)
-                        case "stop": emit(["id": id, "result": ["stopped": true]]); exit(0)
+                        case "muteOutput": result = OutputMute.shared.mute()
+                        case "restoreOutput": result = OutputMute.shared.restore()
+                        case "stop": OutputMute.shared.close(); emit(["id": id, "result": ["stopped": true]]); exit(0)
                         default: throw HelperError("unknown_method", "Unknown native method.")
                         }
                         emit(["id": id, "result": result])
@@ -163,6 +167,8 @@ struct NativeHelper {
                     catch { emit(["id": id, "error": ["code": "native_error", "message": "The native operation failed."]]) }
                 }
             }
+            // Restore on this thread in case the main queue is stuck; closing also refuses a mute still queued there.
+            OutputMute.shared.close()
             DispatchQueue.main.async { exit(0) }
         }
         application.run()

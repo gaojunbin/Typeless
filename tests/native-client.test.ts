@@ -19,6 +19,10 @@ class Helper extends EventEmitter {
     this.requests.push(request);
     if (!this.respond) { done(); return; }
     if (request.method === 'configureShortcut') this.binding = request.params.binding;
+    if (request.method === 'muteOutput' || request.method === 'restoreOutput') {
+      queueMicrotask(() => this.stdout.write(JSON.stringify({ id: request.id, result: request.method === 'muteOutput' ? { muted: false, reason: 'already_muted' } : { restored: false } }) + '\n'));
+      done(); return;
+    }
     queueMicrotask(() => this.stdout.write(JSON.stringify({ id: request.id, result: {
       platform: 'darwin', accessibility: true, inputMonitoring: true, binding: this.binding,
       shortcutAvailable: this.binding === 'fn', tapEnabled: this.binding === 'fn',
@@ -81,6 +85,17 @@ describe('native helper recovery', () => {
     await client.status();
     expect(mocks.spawn).toHaveBeenCalledTimes(2);
     expect(helpers[1].requests.some(request => request.method === 'pasteText')).toBe(false);
+  });
+  it('relays output mute requests and fails fast without a helper', async () => {
+    const helpers: Helper[] = [];
+    mocks.spawn.mockImplementation(() => { const child = new Helper(); helpers.push(child); return child; });
+    const client = new NativeClient({ onShortcut: vi.fn() }); clients.push(client);
+    await client.start();
+    await expect(client.muteOutput()).resolves.toEqual({ muted: false, reason: 'already_muted' });
+    await expect(client.restoreOutput()).resolves.toEqual({ restored: false });
+    expect(helpers[0].requests.slice(-2).map(request => request.method)).toEqual(['muteOutput', 'restoreOutput']);
+    client.stop();
+    await expect(client.muteOutput()).rejects.toMatchObject({ code: 'helper_unavailable' });
   });
 
 });

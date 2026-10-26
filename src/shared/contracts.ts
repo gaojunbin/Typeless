@@ -12,7 +12,8 @@ export interface AppSettings {
   asr: ProviderSettings;
   cleanup: { enabled: boolean; baseUrl: string; model: string; hasApiKey: boolean };
   writing: { strength: 'light' | 'balanced'; instructions: string; language: string };
-  audio: { deviceId: string; maxDurationSeconds: number; interactionSounds: boolean };
+  /** `muteDuringRecording` mutes the system output while recording and restores it afterwards. */
+  audio: { deviceId: string; maxDurationSeconds: number; interactionSounds: boolean; muteDuringRecording: boolean };
   shortcut: { primary: string; fallback: string };
   general: { launchAtLogin: boolean; autoInsert: boolean; setupCompleted: boolean; language: Language };
 }

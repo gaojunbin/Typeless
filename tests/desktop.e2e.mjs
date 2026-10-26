@@ -1,6 +1,7 @@
 import { _electron as electron, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -157,6 +158,8 @@ async function launch() {
   }
 }
 const dispatch = (page, action) => page.evaluate(action => window.typeless.dispatch(action), action);
+// The system output mute as AppleScript reports it (`missing value` when the device has none); recordings must leave it as found.
+const outputMuted = () => process.platform === 'darwin' ? execFileSync('osascript', ['-e', 'output muted of (get volume settings)'], { encoding: 'utf8', timeout: 5000 }).trim() : 'unknown';
 const snapshot = page => page.evaluate(() => window.typeless.getSnapshot());
 const capture = (page, name) => page.screenshot({ path: join(dataRoot, `${name}.png`), animations: 'disabled' });
 const setupCards = process.platform === 'darwin' ? ['microphone', 'accessibility'] : process.platform === 'win32' ? ['microphone', 'helper'] : ['microphone'];
@@ -316,6 +319,12 @@ try {
   await waitSettings({ writing: { instructions } });
   await page.getByRole('switch', { name: '完成后自动粘贴', exact: true }).uncheck();
   await waitSettings({ general: { autoInsert: false } });
+  const muteSwitch = page.getByRole('switch', { name: '录音时静音其他声音', exact: true });
+  await expect(muteSwitch).toBeChecked();
+  await muteSwitch.uncheck();
+  await waitSettings({ audio: { muteDuringRecording: false } });
+  await muteSwitch.check();
+  await waitSettings({ audio: { muteDuringRecording: true } });
   await page.getByLabel(/^主要快捷键/).selectOption('Disabled');
   await waitSettings({ shortcut: { primary: 'Disabled' } });
   await page.getByLabel(/^备用快捷键/).selectOption('CommandOrControl+Shift+D');
@@ -436,6 +445,7 @@ try {
 
   stage('polished microphone output uses selected provider');
   await setLevel('strong', true, 'balanced');
+  const outputBefore = outputMuted();
   await record(page); current = await waitStatus(page, 'ready');
   assert.equal(current.session.rawText, '嗯，下周三下午三点开会。');
   assert.equal(current.session.text, '下周三下午三点开会。');
@@ -448,6 +458,17 @@ try {
   await openTab('首页');
   await expect(page.locator('.result-text')).toBeVisible();
   await page.screenshot({ path: join(dataRoot, 'home-result.png'), animations: 'disabled' });
+  stage('recording asked the helper to mute and restore the output and left it as found');
+  assert.equal(outputMuted(), outputBefore, 'The output mute state must be back to its state before the recording.');
+  assert.equal((await dispatch(page, { type: 'diagnostics.copy' })).ok, true);
+  const muteLine = (await app.evaluate(async ({ clipboard }) => clipboard.readText())).split('\n').find(line => line.startsWith('output mute: '));
+  assert.ok(muteLine, 'The diagnostics report must carry the output mute outcome.');
+  const muteOutcome = JSON.parse(muteLine.slice('output mute: '.length));
+  assert.ok(['muted', 'already_muted', 'unsupported', 'no_device', 'failed'].includes(muteOutcome.mute), `The helper must answer the mute request: ${muteLine}`);
+  assert.ok(['restored', 'unchanged'].includes(muteOutcome.restore), `The helper must answer the restore request: ${muteLine}`);
+  if (muteOutcome.mute === 'muted') assert.equal(muteOutcome.restore, 'restored');
+  // Copying the result again puts the owned synthetic text back, so closing still restores the original clipboard.
+  assert.equal((await dispatch(page, { type: 'dictation.copy' })).ok, true);
   stage('raw result copy does not replace the polished result');
   const resultBeforeCopy = (await snapshot(page)).session;
   await page.getByRole('group', { name: '听写结果视图', exact: true }).getByRole('button', { name: '原文', exact: true }).click();
@@ -578,7 +599,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
   const disk = await readFile(join(dataRoot, 'settings', 'state.json'), 'utf8');
   assert.ok(!disk.includes('FAKE-ASR-KEY')); assert.ok(!disk.includes('FAKE-TEXT-KEY')); assert.ok(!disk.includes('FAKE-FAILED-KEY'));
-  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'install-attempt-fails-cleanly-in-development', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
+  const receipt = { ok: true, checks: ['setup-guide-fresh-launch', 'setup-permissions-skip', 'setup-microphone-meter', 'setup-shortcut-step', 'setup-done-opens-ai', 'setup-rerun-and-skip', 'diagnostics-copy-report', 'restart-skips-setup', 'unconfigured-launch-opens-ai', 'setup-action-opens-ai', 'raw-view-copy-preserves-result', 'copy-success-feedback', 'no-speech-localized-recovery', 'error-capsule-opens-main-on-click', 'no-false-audio-retry', 'none-instructions-retained-inactive', 'whitespace-key-retention', 'autosave-delayed-A-B-A', 'three-sidebar-tabs', 'home-status-list', 'writing-controls-in-ai', 'update-check-and-download', 'install-attempt-fails-cleanly-in-development', 'instructions-blur-save', 'provider-draft-tab-retention', 'minimum-window-three-pages', 'language-switch-english-pages', 'welcome-language-toggle', 'fallback-preset-save-and-readable-label', 'polishing-autosave', 'basic-select-and-toggle-autosave', 'mute-switch-autosave', 'recording-mute-restored-through-helper', 'atomic-provider-save', 'failed-save-retains-state', 'keys-never-echoed', 'unpolished-asr-only-clipboard', 'real-preload-ipc', 'fake-microphone-wav', 'mimo-http', 'cleanup-http', 'cancel-late-response-clipboard-fence', 'missing-credentials', 'restart-persistence'], providerRequests: requests.length, dataRoot, limitations: 'HTTP providers, audio, secure storage and the reported microphone permission status are test doubles. No live provider, real microphone, system permission prompt, physical shortcut or external insertion was tested. Mock output does not establish polishing quality.' };
   await writeFile(join(dataRoot, 'result.json'), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {
