@@ -39,6 +39,26 @@ export interface VocabularyEntry {
 }
 export const vocabularyLimits = { entries: 500, length: 64, soundsLike: 8 } as const;
 
+export interface DictationHistoryEntry {
+  id: string;
+  startedAt: number;
+  durationMs: number;
+  rawText: string;
+  text: string;
+  polished: boolean;
+  updatedAt: number;
+}
+export const historyLimits = { entries: 200, maxTextLength: 50000 } as const;
+
+export interface SyncState {
+  enabled: boolean;
+  folderPath: string;
+  icloudAvailable: boolean;
+  defaultIcloudPath: string;
+  lastSyncedAt?: number;
+  error?: string;
+}
+
 export interface DictationSession {
   id: string;
   status: SessionStatus;
@@ -99,6 +119,10 @@ export interface AppSnapshot {
   update: UpdateState;
   /** Most used first: hits, then last use, then last edit. */
   vocabulary: VocabularyEntry[];
+  /** Newest first. */
+  history?: DictationHistoryEntry[];
+  /** Multi-device folder / iCloud sync state. */
+  sync?: SyncState;
 }
 
 export type SettingsPatch = {
@@ -116,6 +140,14 @@ export type AppAction =
   /** Without `id`: adds the term or merges `soundsLike` into the entry with the same term. With `id`: replaces that entry's term and variants. */
   | { type: 'vocabulary.save'; entry: { id?: string; term: string; soundsLike: string[] } }
   | { type: 'vocabulary.delete'; id: string }
+  | { type: 'history.delete'; id: string }
+  | { type: 'history.clear' }
+  | { type: 'history.copy'; id: string; source?: 'result' | 'raw' }
+  | { type: 'sync.selectFolder' }
+  | { type: 'sync.useIcloud' }
+  | { type: 'sync.setFolder'; path: string }
+  | { type: 'sync.disable' }
+  | { type: 'sync.now' }
   | { type: 'permissions.refresh' }
   | { type: 'permissions.request'; permission: 'microphone' | 'accessibility' }
   | { type: 'permissions.open'; pane: 'microphone' | 'accessibility' | 'inputMonitoring' }

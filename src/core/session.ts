@@ -122,6 +122,16 @@ export class Sessions {
       this.session.text = cleaned.text; this.session.warning = cleaned.warning;
       this.audio = undefined; this.jobContext = undefined;
       this.countVocabulary(id, cleaned.text);
+      try {
+        this.store.recordHistory({
+          id,
+          startedAt: this.session.startedAt,
+          durationMs: this.session.durationMs,
+          rawText: this.session.rawText,
+          text: cleaned.text,
+          polished: Boolean(this.session.rawText && cleaned.text && this.session.rawText !== cleaned.text),
+        });
+      } catch { /* History persistence is best effort. */ }
       await this.deliver(state.settings.general.autoInsert);
     } catch (error) {
       if (!this.active(id, generation)) return;
@@ -152,6 +162,7 @@ export class Sessions {
       this.session.text = shown.slice(0, start) + saved.term + shown.slice(start + heard.length);
       // The corrected dictation used the word even though recognition missed it.
       if (!mentions(shown, saved.term)) { try { this.store.recordVocabularyHits([saved.id]); } catch { /* Usage counts are best effort. */ } }
+      try { this.store.updateHistoryText(this.session.id, this.session.text); } catch { /* History update is best effort. */ }
       this.emit();
     }
   }

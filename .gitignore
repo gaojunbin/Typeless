@@ -6,5 +6,7 @@ dist-electron/
 release/
 native/bin/
 coverage/
+ios/.build/
+ios/.swiftpm/
 *.log
 .DS_Store

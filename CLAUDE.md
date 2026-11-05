@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Typeless is an Electron + React + TypeScript desktop dictation app for macOS and Windows. Tap a shortcut, speak, tap again: audio goes to a speech-recognition provider, the transcript optionally goes to an OpenAI-compatible text model for polishing, the result is copied to the clipboard and optionally pasted into the foreground app. Users bring their own API keys. No backend, no account, no transcript archive.
+Typeless is an Electron + React + TypeScript desktop dictation app for macOS and Windows, paired with a native SwiftUI iOS companion app and Custom Keyboard Extension (`ios/`). Tap a shortcut, speak, tap again: audio goes to a speech-recognition provider, the transcript optionally goes to an OpenAI-compatible text model for polishing, the result is copied to the clipboard and optionally pasted into the foreground app. Users bring their own API keys. No backend or account is required; multi-device sync of API keys, settings, vocabulary, and dictation history works through a user-selected iCloud Drive or custom folder (`src/core/sync.ts`).
 
 Language rule: the product UI is bilingual (Chinese by default, English selectable) and every piece of interface copy lives in `src/renderer/i18n/messages/*.ts` in both languages; all source, comments, docs and commit messages are English.
 

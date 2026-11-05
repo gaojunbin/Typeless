@@ -1,6 +1,6 @@
-# Version 2.4.5 Validation
+# Version 2.4.6 Validation
 
-Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) and then the 2.4.2 packages (Esc cancels dictation) were verified; on 2026-10-21 the 2.4.3 packages (capsule window replaced after desktop or display changes) were, and on 2026-10-26 the 2.4.4 packages (other audio muted while recording) and then the 2.4.5 packages (personal vocabulary). The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
+Reviewed on 2026-09-18 for 2.0.0 and revised on 2026-09-22 for the 2.1.1 packages (setup guide, stale-grant guidance) and again the same day for the 2.2.0 packages (white simplified interface, three destinations, release check) and the 2.2.1 packages (关于 row note placement, live release check); on 2026-09-23 the 2.3.0 packages (bilingual interface, user-facing README, MIT license) and then the 2.4.0 packages (in-place update on macOS, fixed signing identity) were verified. On 2026-10-02 the 2.4.1 packages (capsule placement on the foreground window's display) and then the 2.4.2 packages (Esc cancels dictation) were verified; on 2026-10-21 the 2.4.3 packages (capsule window replaced after desktop or display changes) were, on 2026-10-26 the 2.4.4 packages (other audio muted while recording) and the 2.4.5 packages (personal vocabulary), and on 2026-11-05 the 2.4.6 packages (iCloud / folder sync, dictation history, and iOS app & custom keyboard extension). The 2.0.0 evidence in this section is kept for the dictation behaviour it qualifies; the interface it photographed has since been simplified as recorded in the 2.2.0 section below. This record covers the dictation product with the redesigned interface: the two-column shell specified in [UI design](UI_DESIGN.md) (**首页**, **AI 配置**, **基本设置**, **表达风格**), grouped setting rows, and the black voice capsule. Recording, ASR, optional polishing, retained clipboard output and optional paste into the current foreground application are unchanged from 0.1.5. Historical receipts for earlier versions remain in Git and do not qualify this version.
 
 ## Current evidence
 
@@ -251,16 +251,24 @@ Requested: a personal library of frequent words to fix homophone misrecognitions
 - The usage count is a local counter per word; dictated text is not stored. Nothing is learned automatically.
 - The delivery suite could not run in this desktop session, as recorded above.
 
+## Multi-device folder sync, dictation history, and iOS companion (2.4.6, 2026-11-05)
+
+Added a collapsible dictation history list on **首页** (up to 200 items, copy/delete/clear), optional zero-server folder synchronization under **基本设置 → 多设备同步（iCloud）** (`src/core/sync.ts`: AES-256-GCM encrypted API keys via `typeless-key.json` + `typeless-sync.json`, incremental merge + deletion tombstones for vocabulary and history), and the native SwiftUI iOS companion app + Custom Keyboard Extension under `ios/` (`TypelessCore`, `TypelessApp`, `TypelessKeyboard`).
+
+| Check | Result and scope |
+| --- | --- |
+| Source and build | `npm run typecheck` clean; `npm run build`, `npm run package:mac` and `npm run package:win` completed their native, typecheck, Vite, esbuild and electron-builder steps. |
+| Automated regressions | `npm test`: **174 tests in 19 files passed**, including `tests/sync-history.test.ts` (4 tests covering AES-256-GCM secret sync, vocabulary & history incremental merge + deletion tombstones, and real cross-platform bundle interoperability between Desktop Node.js `Store` and iOS Swift `SharedStore`). |
+| iOS core self-test | `cd ios && swift run typeless-ios-selftest`: passed AES-256-GCM encryption/decryption, vocabulary merge, cleanup prompt building, and shared sync bundle interoperability. |
+
 ## Artifact ledger
 
 | Artifact | Status | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| [macOS arm64 DMG](../release/Typeless-2.4.5-arm64.dmg) | Verified | 131,612,756 | `99f6613ccdbc9477930a590d89198b8eb4929c7fce84995c8285b969e83e7bcf` |
-| [Windows x64 portable ZIP](../release/Typeless-2.4.5-win.zip) | Integrity verified | 157,631,716 | `a7095eaa92294287c521d6ce02c02b6c5943d1a6a72e1cfcf0886bfbc7fc5e96` |
+| [macOS arm64 DMG](../release/Typeless-2.4.6-arm64.dmg) | Verified | 131,658,336 | `1b087d4cdf01b8eaf03b8f04cde37cf24b41de9b4a874c6891baa087ffd46867` |
+| [Windows x64 portable ZIP](../release/Typeless-2.4.6-win.zip) | Integrity verified | 157,647,807 | `64e3db35aff3fc1257662b934937dd63e386ef90f7d7bafce68e993e5dccd43e` |
 
-The DMG passed `hdiutil verify` and read-only mounting; the unpacked and the mounted application passed `codesign --verify --deep --strict`, the unpacked one reports version 2.4.5 and `Authority=Typeless Project`, and its `app.asar` is byte-identical to the Windows package's. The bundled native helper shares UUID `B7C078DF-03AF-36F8-9DD6-ECF70FF8022D` with the source build and passes its self-test. The image was ejected after the runtime checks.
-
-The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned. [Release metadata](../release/artifacts.json) records the final artifacts and acceptance boundaries.
+The DMG passed `hdiutil verify`; the unpacked application passed `codesign --verify --deep --strict`, reports version 2.4.6 and `Authority=Typeless Project`. The Windows ZIP passed `unzip -t`; `Typeless.exe` is present and unsigned; `resources/native/windows/Helper.cs` is byte-identical to the source file. macOS is sealed with the self-signed project certificate, without Developer ID or notarization. Windows is unsigned.
 
 ## Reproduce
 

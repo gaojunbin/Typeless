@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Keyboard, Laptop, Mic, ShieldCheck } from 'lucide-react';
+import { Cloud, Keyboard, Laptop, Mic, ShieldCheck } from 'lucide-react';
 import { KeyChips, PageHeader, SectionGroup, Segmented, SettingRow, StatusBadge } from '../ui';
 import { useI18n } from '../i18n';
 import type { Language } from '../../shared/contracts';
@@ -104,6 +104,41 @@ export function BasicSettings({ snapshot, run }: SettingsSectionProps) {
       <LanguageRow snapshot={snapshot} run={run} />
       <SwitchRow label={t('settings.general.autoInsert.label')} description={t('settings.general.autoInsert.description')} saved={settings.general.autoInsert} save={autoInsert => run({ type: 'settings.save', patch: { general: { autoInsert } } })} />
       <SwitchRow label={t('settings.general.launchAtLogin.label')} saved={settings.general.launchAtLogin} save={launchAtLogin => run({ type: 'settings.save', patch: { general: { launchAtLogin } } })} />
+    </SectionGroup>
+    <SectionGroup icon={<Cloud {...groupIcon} />} title={t('settings.sync.group')}>
+      <SettingRow
+        inline
+        className="pref-permission-row"
+        label={t('settings.sync.status.label')}
+        description={t('settings.sync.status.description')}
+        control={<>
+          <StatusBadge tone={snapshot.sync?.error ? 'warn' : snapshot.sync?.enabled ? 'ok' : 'muted'}>
+            {t(snapshot.sync?.error ? 'settings.sync.badge.error' : snapshot.sync?.enabled ? 'settings.sync.badge.enabled' : 'settings.sync.badge.disabled')}
+          </StatusBadge>
+          {snapshot.sync?.icloudAvailable && (!snapshot.sync.enabled || snapshot.sync.folderPath !== snapshot.sync.defaultIcloudPath) && (
+            <button type="button" className="secondary small" onClick={() => { void run({ type: 'sync.useIcloud' }); }}>
+              {t('settings.sync.useIcloud')}
+            </button>
+          )}
+          <button type="button" className="secondary small" onClick={() => { void run({ type: 'sync.selectFolder' }); }}>
+            {t('settings.sync.chooseFolder')}
+          </button>
+        </>}
+      />
+      <SettingRow
+        inline
+        className="pref-permission-row"
+        label={t('settings.sync.folder.label')}
+        description={snapshot.sync?.enabled && snapshot.sync.folderPath ? snapshot.sync.folderPath : t('settings.sync.folder.none')}
+        control={snapshot.sync?.enabled ? <>
+          <button type="button" className="secondary small" onClick={() => { void run({ type: 'sync.now' }); }}>
+            {t('settings.sync.syncNow')}
+          </button>
+          <button type="button" className="secondary small" onClick={() => { void run({ type: 'sync.disable' }); }}>
+            {t('settings.sync.disable')}
+          </button>
+        </> : null}
+      />
     </SectionGroup>
     <SectionGroup icon={<ShieldCheck {...groupIcon} />} title={t('settings.permissions.group')}>
       <PermissionRow label={t('settings.audio.microphone')} granted={permissions.microphone === 'granted'} text={t(permissions.microphone === 'granted' ? 'settings.permissions.granted' : 'settings.permissions.pending')}

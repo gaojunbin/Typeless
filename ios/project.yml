@@ -1,0 +1,55 @@
+name: TypelessiOS
+options:
+  bundleIdPrefix: dev.typeless
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+packages:
+  TypelessCore:
+    path: .
+
+targets:
+  TypelessApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Sources/TypelessApp
+    info:
+      path: Sources/TypelessApp/Info.plist
+    entitlements:
+      path: Sources/TypelessApp/TypelessApp.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.typeless.ios
+        PRODUCT_NAME: Typeless
+        MARKETING_VERSION: 2.4.6
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: 5.9
+    dependencies:
+      - package: TypelessCore
+        product: TypelessCore
+      - target: TypelessKeyboard
+        embed: true
+
+  TypelessKeyboard:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Sources/TypelessKeyboard
+    info:
+      path: Sources/TypelessKeyboard/Info.plist
+    entitlements:
+      path: Sources/TypelessKeyboard/TypelessKeyboard.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.typeless.ios.keyboard
+        PRODUCT_NAME: TypelessKeyboard
+        MARKETING_VERSION: 2.4.6
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: 5.9
+    dependencies:
+      - package: TypelessCore
+        product: TypelessCore

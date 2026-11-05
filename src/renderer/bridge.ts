@@ -19,6 +19,8 @@ function previewBridge(): TypelessBridge {
     update: { status: 'none', currentVersion: 'preview', checkedAt: Date.now() },
     permissions: { microphone: 'unknown', accessibility: false, nativeAvailable: false, nativeMessage: '', primaryShortcutAvailable: false, fallbackShortcutAvailable: false, inputMonitoring: false, shortcutMessage: '', shortcutPresses: 0 },
     vocabulary: [],
+    history: [],
+    sync: { enabled: false, folderPath: '', icloudAvailable: true, defaultIcloudPath: '~/Library/Mobile Documents/com~apple~CloudDocs/Typeless' },
   };
   const listeners = new Set<(value: AppSnapshot) => void>();
   const publish = () => listeners.forEach(listener => listener(structuredClone(state)));
@@ -47,6 +49,21 @@ function previewBridge(): TypelessBridge {
         case 'vocabulary.delete':
           state.vocabulary = state.vocabulary.filter(entry => entry.id !== action.id);
           publish();
+          return { ok: true };
+        case 'history.delete':
+          state.history = (state.history ?? []).filter(entry => entry.id !== action.id);
+          publish();
+          return { ok: true };
+        case 'history.clear':
+          state.history = [];
+          publish();
+          return { ok: true };
+        case 'history.copy':
+        case 'sync.selectFolder':
+        case 'sync.useIcloud':
+        case 'sync.setFolder':
+        case 'sync.disable':
+        case 'sync.now':
           return { ok: true };
         // The preview never has a dictation result to fix, so a correction only learns the misrecognition.
         case 'dictation.correct':

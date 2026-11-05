@@ -21,6 +21,7 @@ export interface ControllerHost {
   installUpdate(): Promise<void>;
   openReleasePage(): Promise<void>;
   settingsChanged(changes: { login: boolean; shortcut: boolean }): Promise<void>;
+  selectSyncFolder?(): Promise<string | undefined>;
 }
 export class Controller {
   readonly sessions: Sessions;
@@ -30,7 +31,7 @@ export class Controller {
     this.update = { status: 'idle', currentVersion: version };
     this.sessions = new Sessions(store, providers, { ...host, changed: () => this.publish() });
   }
-  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions, update: this.update, vocabulary: this.store.vocabulary() }; }
+  snapshot(): AppSnapshot { return { ...this.store.snapshot(), version: this.version, platform: process.platform as AppSnapshot['platform'], session: structuredClone(this.sessions.session), permissions: this.permissions, update: this.update, vocabulary: this.store.vocabulary(), history: this.store.history(), sync: this.store.syncState() }; }
   /** Main owns the release check; it pushes each transition here so every window sees it. */
   setUpdate(update: UpdateState) { this.update = update; this.publish(); }
   publish() { this.host.publish(this.snapshot()); }
@@ -67,6 +68,30 @@ export class Controller {
           this.sessions.correct(action.heard, action.term, action.start); break;
         case 'vocabulary.save': this.store.saveVocabulary(action.entry); break;
         case 'vocabulary.delete': this.store.deleteVocabulary(action.id); break;
+        case 'history.delete': this.store.deleteHistory(action.id); break;
+        case 'history.clear': this.store.clearHistory(); break;
+        case 'history.copy': {
+          if (typeof action.id !== 'string' || !action.id) throw new Error('Invalid history entry.');
+          if (action.source !== undefined && !['result', 'raw'].includes(action.source)) throw new Error('Invalid copy source.');
+          const item = this.store.history().find(entry => entry.id === action.id);
+          if (!item) throw new Error('This history entry is no longer available.');
+          const text = action.source === 'raw' ? item.rawText : item.text || item.rawText;
+          await this.host.copy(text);
+          break;
+        }
+        case 'sync.selectFolder': {
+          const chosen = await this.host.selectSyncFolder?.();
+          if (!chosen) return { ok: true };
+          this.store.setSyncFolder(chosen);
+          break;
+        }
+        case 'sync.useIcloud': this.store.useIcloudSync(); break;
+        case 'sync.setFolder':
+          if (typeof action.path !== 'string') throw new Error('Invalid sync folder.');
+          this.store.setSyncFolder(action.path);
+          break;
+        case 'sync.disable': this.store.disableSync(); break;
+        case 'sync.now': this.store.syncNow(); break;
         case 'permissions.refresh': await this.refreshPermissions(); break;
         case 'permissions.request': if (!['microphone', 'accessibility'].includes(action.permission)) throw new Error('Invalid permission.'); await this.refreshPermissions(action.permission); break;
         case 'permissions.open': if (!['microphone', 'accessibility', 'inputMonitoring'].includes(action.pane)) throw new Error('Invalid pane.'); this.host.openPane(action.pane); break;

@@ -66,6 +66,29 @@
 .status-detail { display: flex; align-items: center; min-width: 0; color: var(--text-secondary); font-weight: 400; line-height: 1.5; overflow-wrap: anywhere; }
 .status-chevron { color: var(--text-tertiary); }
 
+/* Collapsible Dictation History section */
+.history-section { margin-top: 16px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: #ffffff; overflow: hidden; }
+.history-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 12px 4px 4px; }
+.history-toggle {
+  display: flex; align-items: center; gap: 10px; flex: 1;
+  padding: 10px 12px; border: 0; border-radius: calc(var(--radius-lg) - 4px);
+  background: transparent; color: var(--text); text-align: left;
+}
+.history-toggle:hover { background: var(--bg-hover); }
+.history-toggle > svg:first-child { color: var(--text-secondary); }
+.history-title { font-size: var(--fs-heading); font-weight: 600; }
+.history-toggle-label { margin-left: auto; font-size: var(--fs-caption); color: var(--text-secondary); }
+.history-chevron { color: var(--text-tertiary); transition: transform .15s var(--ease); }
+.history-chevron.open { transform: rotate(180deg); }
+.history-clear { font-size: var(--fs-caption); white-space: nowrap; }
+.history-empty { padding: 12px 16px 16px; color: var(--text-secondary); border-top: 1px solid var(--line); }
+.history-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); max-height: 320px; overflow-y: auto; }
+.history-item { padding: 12px 16px; }
+.history-item + .history-item { border-top: 1px solid var(--line); }
+.history-item-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: var(--fs-caption); margin-bottom: 6px; }
+.history-item-actions { display: flex; align-items: center; gap: 6px; }
+.history-item-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; color: var(--text); }
+
 @media (max-width: 820px) {
   .dictation-row { grid-template-columns: 48px 1fr; }
   .dictation-controls { grid-column: 2; }

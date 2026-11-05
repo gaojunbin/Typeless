@@ -1,17 +1,17 @@
 <div align="center">
   <img src="build/icon.png" width="128" height="128" alt="Typeless icon" />
   <h1>Typeless</h1>
-  <p><b>Speak, don't type.</b> Desktop dictation for macOS and Windows that runs on your own AI keys.</p>
+  <p><b>Speak, don't type.</b> Personal AI dictation for macOS, Windows, and iOS that runs on your own AI keys.</p>
   <p>
     <a href="https://github.com/gaojunbin/Typeless/releases/latest"><img src="https://img.shields.io/github/v/release/gaojunbin/Typeless?label=release" alt="Latest release" /></a>
-    <img src="https://img.shields.io/badge/platform-macOS%2013%2B%20%7C%20Windows%2010%2B-blue" alt="Platform: macOS 13+ and Windows 10+" />
+    <img src="https://img.shields.io/badge/platform-macOS%2013%2B%20%7C%20Windows%2010%2B%20%7C%20iOS%2016%2B-blue" alt="Platform: macOS 13+, Windows 10+, and iOS 16+" />
     <a href="https://github.com/gaojunbin/Typeless/releases"><img src="https://img.shields.io/github/downloads/gaojunbin/Typeless/total" alt="Downloads" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   </p>
   <p><a href="https://github.com/gaojunbin/Typeless/releases/latest"><b>Download the latest release</b></a></p>
 </div>
 
-Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-recognition service you configure, optionally tidies the transcript with a text model, copies the result and can paste it into the app in front. No account, no server, no transcript history: your API keys stay on your computer.
+Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-recognition service you configure, optionally tidies the transcript with a text model, copies the result and can paste it into the app in front. No account, no server: your API keys stay on your device or in your own iCloud Drive folder.
 
 ![Typeless home page](docs/screenshots/home-en.png)
 
@@ -20,7 +20,9 @@ Tap a shortcut, speak, tap again. Typeless sends the recording to the speech-rec
 - **One key, anywhere.** Tap Fn on macOS or Right Alt on Windows to start and stop. A fallback chord (Command/Ctrl+Shift+Space) is always available.
 - **Your own models.** Speech recognition through Xiaomi MiMo or any OpenAI-compatible endpoint; polishing through any OpenAI-compatible chat model. Keys are encrypted with the system's secure storage.
 - **Polishing you control.** None, light or strong, plus personal instructions for names and terms. If polishing fails, the raw transcript is still delivered.
-- **Your own vocabulary.** Keep the names and terms you say, with how they get misheard; with polishing on, misheard words are put right where the context fits, and a correction can be taught straight from the result.
+- **Your own vocabulary & history.** Keep the names and terms you say, with how they get misheard; with polishing on, misheard words are put right where the context fits, and a correction can be taught straight from the result. Recent dictations are kept locally in a collapsible history list on Home so you can copy or delete past transcripts at any time.
+- **Zero-server iCloud / folder sync.** Choose an iCloud Drive or custom sync folder under Settings → Multi-device Sync to automatically share AES-256-GCM encrypted API keys, AI settings, vocabulary, and dictation history across your Macs, PCs, and iPhone without registering any account.
+- **iOS app & AI voice keyboard (`ios/`).** Native SwiftUI iPhone app and Custom Keyboard Extension (`TypelessKeyboard`) that share the same iCloud sync bundle format, speech providers, polishing prompt, and personal vocabulary.
 - **Quiet while you speak.** Recording mutes the computer's sound output and restores it afterwards, so background music or video stays out of the transcript.
 - **Copy first, paste optional.** Every result lands on the clipboard; automatic paste sends Command/Ctrl+V to the current app and never presses Enter.
 - **Built-in updates.** Settings → About checks GitHub Releases. On macOS one click installs the update in place and reopens Typeless, and permissions survive because every release is sealed with the same project certificate.

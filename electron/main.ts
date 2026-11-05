@@ -52,6 +52,7 @@ const defaultUpdateUrl = 'https://api.github.com/repos/gaojunbin/Typeless/releas
 const updateUrl = process.env.TYPELESS_UPDATE_URL || defaultUpdateUrl;
 let updateChecker: UpdateChecker;
 let updateTimer: ReturnType<typeof setInterval> | undefined;
+let syncTimer: ReturnType<typeof setInterval> | undefined;
 interface StatusTransition {
   at: string;
   accessibility: boolean;
@@ -285,6 +286,12 @@ else {
       downloadUpdate: async () => { await updateChecker.download(); },
       openUpdate: () => updateChecker.open(), openReleasePage: () => updateChecker.openRelease(),
       installUpdate: async () => { await updateChecker.install(); },
+      selectSyncFolder: async () => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        return result.canceled || !result.filePaths.length ? undefined : result.filePaths[0];
+      },
     }, app.getVersion());
     updateChecker = new UpdateChecker({
       currentVersion: app.getVersion(), platform: process.platform, arch: process.arch,
@@ -318,6 +325,9 @@ else {
       } catch { /* Reject invalid messages without exposing process internals. */ }
     });
     mainWindow.on('close', event => { if (!quitting) { event.preventDefault(); mainWindow.hide(); } });
+    mainWindow.on('focus', () => {
+      try { if (store.syncNow()) controller.publish(); } catch { controller.publish(); }
+    });
     mainWindow.webContents.on('render-process-gone', () => controller.sessions.cancel());
     mainWindow.webContents.on('did-finish-load', () => controller.publish());
     const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAANUlEQVR4nGNgGLRARk7pPzIeNYBIA5AV4jIAr2GDywCy1eBTQFJgYsNEacZmEMkaqWYAMQAAQnpGfcf9t5IAAAAASUVORK5CYII=');
@@ -346,12 +356,17 @@ else {
     }
     shortcutHealthTimer = setInterval(() => { void refreshShortcutHealth(); }, 2000);
     shortcutHealthTimer.unref();
+    syncTimer = setInterval(() => {
+      if (quitting || !store || !controller) return;
+      try { if (store.syncNow()) controller.publish(); } catch { /* Surfaced via syncState().error */ }
+    }, 10_000);
+    syncTimer.unref();
   }).catch(error => { console.error('Typeless initialization failed:', error instanceof Error ? error.stack : 'Unknown initialization error'); dialog.showErrorBox('Typeless', 'The app could not initialize. Check the local data directory and build outputs.'); app.quit(); });
 }
 app.on('activate', () => { showMain(); void refreshShortcutHealth(); });
 app.on('window-all-closed', () => { /* Keep the tray and hidden capture renderer alive. */ });
 app.on('before-quit', event => {
-  if (!quitting) { quitting = true; clearInterval(shortcutHealthTimer); clearInterval(updateTimer); updateChecker?.cancel(); voiceOverlay?.hide(); controller?.sessions.cancel(); }
+  if (!quitting) { quitting = true; clearInterval(shortcutHealthTimer); clearInterval(updateTimer); clearInterval(syncTimer); updateChecker?.cancel(); voiceOverlay?.hide(); controller?.sessions.cancel(); }
   // Windows terminates the helper outright, so output muted for a recording is restored before the helper stops.
   if (!outputReleased) {
     outputReleased = true;
