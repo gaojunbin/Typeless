@@ -8,5 +8,6 @@ native/bin/
 coverage/
 ios/.build/
 ios/.swiftpm/
+**/xcuserdata/
 *.log
 .DS_Store

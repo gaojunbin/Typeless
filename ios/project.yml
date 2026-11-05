@@ -16,10 +16,30 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - path: Sources/TypelessApp
+        excludes:
+          - Info.plist
+          - TypelessApp.entitlements
     info:
       path: Sources/TypelessApp/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: zh_CN
+        CFBundleDisplayName: Typeless
+        CFBundleShortVersionString: "2.4.6"
+        CFBundleVersion: "1"
+        NSMicrophoneUsageDescription: "Typeless 仅在您主动开始语音听写时使用麦克风录音。"
+        UIBackgroundModes:
+          - audio
+        UILaunchScreen: {}
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: dev.typeless.ios
+            CFBundleURLSchemes:
+              - typeless
     entitlements:
       path: Sources/TypelessApp/TypelessApp.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.dev.typeless.ios
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.typeless.ios
@@ -39,10 +59,30 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - path: Sources/TypelessKeyboard
+        excludes:
+          - Info.plist
+          - TypelessKeyboard.entitlements
     info:
       path: Sources/TypelessKeyboard/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: zh_CN
+        CFBundleDisplayName: "Typeless — AI 语音输入法"
+        CFBundleShortVersionString: "2.4.6"
+        CFBundleVersion: "1"
+        NSMicrophoneUsageDescription: "Typeless 语音输入法需要麦克风权限以录制您的语音并进行 AI 识别润色。"
+        NSExtension:
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: zh-Hans
+            RequestsOpenAccess: true
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).KeyboardViewController"
     entitlements:
       path: Sources/TypelessKeyboard/TypelessKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.dev.typeless.ios
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.typeless.ios.keyboard

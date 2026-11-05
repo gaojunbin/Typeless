@@ -1,0 +1,499 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		30D0A181CB125D02D4A3F3FF /* TypelessCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1A899B3E5F2251AB3345E04F /* TypelessCore */; };
+		4737C064DABB648EA0A4644E /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031D4C448A425D8E479B55F9 /* HistoryView.swift */; };
+		5157206F809646F323CF0E52 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F70447704A99A2EF2ED79BA /* KeyboardViewController.swift */; };
+		AE7849267675D159CAF72DB4 /* TypelessiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C0377E84073E12EE38E25E /* TypelessiOSApp.swift */; };
+		B57C42B1B55974AFFB68D427 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4789977CB9876D3B868E7571 /* MainTabView.swift */; };
+		BB038F87B37AA0CFB69C94F4 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90BC0CF4C8B5DEFD9CD99A9 /* HomeView.swift */; };
+		CCEEB3815FAD68E9BF173D02 /* TypelessKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ECC31ECF1F7F2EEA1F966CE7 /* TypelessKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CEE6FC09B127EA4C360B6A6D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D3B3AB67D793CF7CEFB7AB /* SettingsView.swift */; };
+		E915A28ADC932BE275821913 /* TypelessCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6D752ED8E298E38C63D261F7 /* TypelessCore */; };
+		EB075EC076F601AA42BCA77F /* VocabularyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A9C229FAE012F3A3972034 /* VocabularyView.swift */; };
+		F1E351EC3A2981DD91ACC93C /* KeyboardRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DDEBF5548BBD8BD0973AD2A /* KeyboardRootView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AFE708E4AA4FAE4A9E22FEFB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17D106FECAAFA6B847336B0D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0887AA05B81131C9069FD145;
+			remoteInfo = TypelessKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F6951546BD396E0C63803DFD /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CCEEB3815FAD68E9BF173D02 /* TypelessKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		031D4C448A425D8E479B55F9 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		1A40AD9B1D004041FD1C1E27 /* TypelessApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TypelessApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2DDEBF5548BBD8BD0973AD2A /* KeyboardRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRootView.swift; sourceTree = "<group>"; };
+		2F70447704A99A2EF2ED79BA /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		3CC38C9520BCA61B63085E9F /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
+		4789977CB9876D3B868E7571 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		A0D3B3AB67D793CF7CEFB7AB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C6C0377E84073E12EE38E25E /* TypelessiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypelessiOSApp.swift; sourceTree = "<group>"; };
+		C90BC0CF4C8B5DEFD9CD99A9 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		D8A9C229FAE012F3A3972034 /* VocabularyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyView.swift; sourceTree = "<group>"; };
+		ECC31ECF1F7F2EEA1F966CE7 /* TypelessKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TypelessKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D2D3DF4C72632A81657F3F36 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E915A28ADC932BE275821913 /* TypelessCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D36D772506CDF059C973F1E2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30D0A181CB125D02D4A3F3FF /* TypelessCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2FB89F78CA15FB50294B4EC7 /* TypelessApp */ = {
+			isa = PBXGroup;
+			children = (
+				031D4C448A425D8E479B55F9 /* HistoryView.swift */,
+				C90BC0CF4C8B5DEFD9CD99A9 /* HomeView.swift */,
+				4789977CB9876D3B868E7571 /* MainTabView.swift */,
+				A0D3B3AB67D793CF7CEFB7AB /* SettingsView.swift */,
+				C6C0377E84073E12EE38E25E /* TypelessiOSApp.swift */,
+				D8A9C229FAE012F3A3972034 /* VocabularyView.swift */,
+			);
+			name = TypelessApp;
+			path = Sources/TypelessApp;
+			sourceTree = "<group>";
+		};
+		541CF5B0A2DC443A807F38BC /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				3CC38C9520BCA61B63085E9F /* ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		7C864384A73B82D8D9E06B14 /* TypelessKeyboard */ = {
+			isa = PBXGroup;
+			children = (
+				2DDEBF5548BBD8BD0973AD2A /* KeyboardRootView.swift */,
+				2F70447704A99A2EF2ED79BA /* KeyboardViewController.swift */,
+			);
+			name = TypelessKeyboard;
+			path = Sources/TypelessKeyboard;
+			sourceTree = "<group>";
+		};
+		94ADD7F6C7E0F609808C5329 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1A40AD9B1D004041FD1C1E27 /* TypelessApp.app */,
+				ECC31ECF1F7F2EEA1F966CE7 /* TypelessKeyboard.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F9FDAA70574695E19FF6AC79 = {
+			isa = PBXGroup;
+			children = (
+				541CF5B0A2DC443A807F38BC /* Packages */,
+				2FB89F78CA15FB50294B4EC7 /* TypelessApp */,
+				7C864384A73B82D8D9E06B14 /* TypelessKeyboard */,
+				94ADD7F6C7E0F609808C5329 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0887AA05B81131C9069FD145 /* TypelessKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D0C0A1DD05BD691BC3E63A5 /* Build configuration list for PBXNativeTarget "TypelessKeyboard" */;
+			buildPhases = (
+				13278A0CC2177CC5553D8A2C /* Sources */,
+				D36D772506CDF059C973F1E2 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TypelessKeyboard;
+			packageProductDependencies = (
+				1A899B3E5F2251AB3345E04F /* TypelessCore */,
+			);
+			productName = TypelessKeyboard;
+			productReference = ECC31ECF1F7F2EEA1F966CE7 /* TypelessKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		28CEA29CAFAF39688D2001CE /* TypelessApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F20AEE5FF26029F729F66A4C /* Build configuration list for PBXNativeTarget "TypelessApp" */;
+			buildPhases = (
+				2F93A16675222B688EA558D6 /* Sources */,
+				D2D3DF4C72632A81657F3F36 /* Frameworks */,
+				F6951546BD396E0C63803DFD /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2618C6AA3907256196CBDCDB /* PBXTargetDependency */,
+			);
+			name = TypelessApp;
+			packageProductDependencies = (
+				6D752ED8E298E38C63D261F7 /* TypelessCore */,
+			);
+			productName = TypelessApp;
+			productReference = 1A40AD9B1D004041FD1C1E27 /* TypelessApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		17D106FECAAFA6B847336B0D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 8DA3D25A2706836BD367FEF8 /* Build configuration list for PBXProject "TypelessiOS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F9FDAA70574695E19FF6AC79;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				0A069E0999B60B487B3CF6E3 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 94ADD7F6C7E0F609808C5329 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				28CEA29CAFAF39688D2001CE /* TypelessApp */,
+				0887AA05B81131C9069FD145 /* TypelessKeyboard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		13278A0CC2177CC5553D8A2C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1E351EC3A2981DD91ACC93C /* KeyboardRootView.swift in Sources */,
+				5157206F809646F323CF0E52 /* KeyboardViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2F93A16675222B688EA558D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4737C064DABB648EA0A4644E /* HistoryView.swift in Sources */,
+				BB038F87B37AA0CFB69C94F4 /* HomeView.swift in Sources */,
+				B57C42B1B55974AFFB68D427 /* MainTabView.swift in Sources */,
+				CEE6FC09B127EA4C360B6A6D /* SettingsView.swift in Sources */,
+				AE7849267675D159CAF72DB4 /* TypelessiOSApp.swift in Sources */,
+				EB075EC076F601AA42BCA77F /* VocabularyView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2618C6AA3907256196CBDCDB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0887AA05B81131C9069FD145 /* TypelessKeyboard */;
+			targetProxy = AFE708E4AA4FAE4A9E22FEFB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0539BC5589DDBAF03202B658 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8C1909EF2D54C66D05AF4C5A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/TypelessApp/TypelessApp.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Sources/TypelessApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.4.6;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.typeless.ios;
+				PRODUCT_NAME = Typeless;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8F42D52FAAEFF319B89EEC82 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DA1CD40F810DEB35E3A33CE2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Sources/TypelessKeyboard/TypelessKeyboard.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Sources/TypelessKeyboard/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.4.6;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.typeless.ios.keyboard;
+				PRODUCT_NAME = TypelessKeyboard;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F913506E116DB8825EFABF36 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Sources/TypelessKeyboard/TypelessKeyboard.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Sources/TypelessKeyboard/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.4.6;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.typeless.ios.keyboard;
+				PRODUCT_NAME = TypelessKeyboard;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F9BB2C4B947D3A063756C341 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/TypelessApp/TypelessApp.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Sources/TypelessApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.4.6;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.typeless.ios;
+				PRODUCT_NAME = Typeless;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7D0C0A1DD05BD691BC3E63A5 /* Build configuration list for PBXNativeTarget "TypelessKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F913506E116DB8825EFABF36 /* Debug */,
+				DA1CD40F810DEB35E3A33CE2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8DA3D25A2706836BD367FEF8 /* Build configuration list for PBXProject "TypelessiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8F42D52FAAEFF319B89EEC82 /* Debug */,
+				0539BC5589DDBAF03202B658 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F20AEE5FF26029F729F66A4C /* Build configuration list for PBXNativeTarget "TypelessApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8C1909EF2D54C66D05AF4C5A /* Debug */,
+				F9BB2C4B947D3A063756C341 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		0A069E0999B60B487B3CF6E3 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A899B3E5F2251AB3345E04F /* TypelessCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TypelessCore;
+		};
+		6D752ED8E298E38C63D261F7 /* TypelessCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TypelessCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 17D106FECAAFA6B847336B0D /* Project object */;
+}
