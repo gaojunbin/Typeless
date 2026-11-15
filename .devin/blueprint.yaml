@@ -1,0 +1,58 @@
+# Devin environment for Typeless: Electron desktop app (macOS, Windows) and the SwiftUI iOS app.
+# Applied with `client-validation-devin env apply`; validation commands and scenarios live in .devin/qa.toml.
+# Uses the Xcode preinstalled on Devin's macOS image; never install Xcode here.
+runs-on: macos
+initialize:
+  - name: Install Node.js 26 (the lockfile is maintained with Node 26 / npm 11)
+    uses: github.com/actions/setup-node@v4
+    with:
+      node-version: "26"
+maintenance:
+  - name: Install dependencies and warm the desktop build
+    run: |
+      npm ci
+      npm run build || echo "WARN: desktop warm build failed"
+  - name: Warm the iOS build and pre-boot the simulator
+    run: |
+      xcodebuild -project ios/TypelessiOS.xcodeproj -scheme TypelessApp -sdk iphonesimulator \
+        -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ~/qa-dd \
+        CODE_SIGNING_ALLOWED=NO build || echo "WARN: iOS warm build failed"
+      xcrun simctl boot "iPhone 17" || true
+knowledge:
+  - name: build
+    contents: |
+      Desktop: npm ci && npm run build   (native helper via xcrun swiftc, typecheck, Vite, esbuild)
+      iOS: xcodebuild -project ios/TypelessiOS.xcodeproj -scheme TypelessApp -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ~/qa-dd CODE_SIGNING_ALLOWED=NO build
+  - name: test
+    contents: |
+      Desktop: npm test && npm run test:desktop   (build first; needs the desktop session)
+      iOS core: cd ios && swift run typeless-ios-selftest
+  - name: lint
+    contents: npm run typecheck
+  - name: run
+    contents: |
+      Desktop: TYPELESS_DATA_DIR=/tmp/qa/typeless-data TYPELESS_UPDATE_URL=off npm start
+      iOS: xcrun simctl install booted ~/qa-dd/Build/Products/Debug-iphonesimulator/Typeless.app && xcrun simctl launch booted dev.typeless.ios
+---
+runs-on: windows
+initialize:
+  - name: Install Node.js 26
+    uses: github.com/actions/setup-node@v4
+    with:
+      node-version: "26"
+  - name: Allow long paths for node_modules
+    run: git config --global core.longpaths true
+maintenance:
+  - name: Install dependencies and warm the build
+    run: |
+      npm ci
+      npm run build || echo "WARN: desktop warm build failed"
+knowledge:
+  - name: build
+    contents: npm ci && npm run build   (stages native/windows/Helper.cs; PowerShell compiles it when the app starts)
+  - name: test
+    contents: npm test && npm run test:desktop   (build first; needs the desktop session)
+  - name: lint
+    contents: npm run typecheck
+  - name: run
+    contents: TYPELESS_DATA_DIR='C:\qa\typeless-data' TYPELESS_UPDATE_URL=off npm start

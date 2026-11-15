@@ -1,0 +1,214 @@
+# .devin/qa.toml: validation spec read by the client-validation-devin CLI (Devin cloud validation).
+# What to validate lives here; how is defined by the validator protocol shipped with the skill.
+schema = 1
+
+[product]
+name = "Typeless"
+summary = """Personal AI dictation: an Electron + React desktop app for macOS (arm64) and Windows (x64), plus a \
+native SwiftUI iOS app with a custom keyboard. Users bring their own speech and text-model API keys; no keys are \
+needed to validate the interface, and the desktop e2e harness uses fake audio with mock providers."""
+
+[delivery]
+mode = "push"
+
+[run]
+default_platforms = ["macos", "windows", "ios"]
+max_rounds = 5
+timeout_minutes = 90
+max_parallel = 3
+fail_on = ["blocker", "critical", "major"]
+record_video = true
+
+[release]
+command = []
+auto = false
+
+[layout]
+themes = ["light", "dark"]
+locales = ["zh", "en"]
+text_scale = ["default", "largest"]
+checks = """
+The interface language is an in-app setting (Chinese by default, English selectable), not the OS locale. No
+overlapping or clipped text in either language, no control off-screen or under the macOS traffic lights or the
+title bar, no horizontal scrolling at the minimum window size 880x600. Setting rows show two columns at 1000 px
+and stack below 900 px; the Home side rail moves under the main column below 1080 px. Pages stay white with no
+coloured backdrops. The voice capsule never appears during the setup guide.
+"""
+
+[platforms.macos]
+vm = "macos"
+setup = "npm ci"
+build = "npm run build"
+test = "npm test && npm run test:desktop"
+launch = "rm -rf /tmp/qa/typeless-data && TYPELESS_DATA_DIR=/tmp/qa/typeless-data TYPELESS_UPDATE_URL=off npm start"
+artifact = "dist-electron/main.cjs (run through npm start; packaging is not part of validation)"
+window_sizes = ["1000x750", "880x600", "1280x800"]
+themes = ["light"]
+text_scale = ["default"]
+notes = """
+The desktop app has no dark theme by design; do not report that. The launch command starts the built app with a
+fresh profile (the setup guide appears) and the automatic update check off; in this development build the macOS
+process is named Electron. Switch the interface language in 基本设置 → 通用 → 语言, or with the language link on
+the welcome screen. The VM has no microphone: an idle level meter and failed recordings are expected, never
+report them. The Fn key cannot be pressed on the VM; use the fallback chord Command+Shift+Space. macOS
+permission prompts accept the password devin. Never enter real API keys and never install an update.
+"""
+
+[platforms.windows]
+vm = "windows"
+setup = "npm ci"
+build = "npm run build"
+test = "npm test && npm run test:desktop"
+launch = "rm -rf /c/qa/typeless-data && TYPELESS_DATA_DIR='C:\\qa\\typeless-data' TYPELESS_UPDATE_URL=off npm start"
+artifact = "dist-electron/main.cjs (run through npm start); release/Typeless-<version>-win.zip after npm run package:win"
+window_sizes = ["1000x750", "880x600", "1280x800"]
+themes = ["light"]
+text_scale = ["default"]
+notes = """
+The maintainer has never run a Windows build, so this is the first real Windows run: report every runtime error.
+The desktop app has no dark theme by design. The native helper is compiled at runtime by Windows PowerShell 5.1
+from native/windows/Helper.cs; its status shows on the 权限 step (系统输入助手) and in 基本设置, and its log is
+<TYPELESS_DATA_DIR>\\logs\\native-status.log: attach that log. The primary shortcut is Right Alt; use the fallback
+chord Ctrl+Shift+Space. No microphone exists on the VM. After the scenarios, run npm run package:win, extract
+release/Typeless-*-win.zip to C:\\qa\\pkg and start Typeless.exe once with TYPELESS_DATA_DIR=C:\\qa\\pkg-data to
+confirm the packaged build reaches the welcome screen. Never enter real API keys.
+"""
+
+[platforms.ios]
+vm = "macos"
+build = "xcodebuild -project ios/TypelessiOS.xcodeproj -scheme TypelessApp -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ~/qa-dd CODE_SIGNING_ALLOWED=NO build"
+test = "cd ios && swift run typeless-ios-selftest"
+app_id = "dev.typeless.ios"
+artifact = "~/qa-dd/Build/Products/Debug-iphonesimulator/Typeless.app"
+devices = ["iPhone 17", "iPhone SE (3rd generation)"]
+notes = """
+Unsigned simulator builds are expected: without the App Group entitlement the app stores data in Application
+Support, which is fine. The interface language is an in-app setting: 设置与同步 → 界面语言. Four tabs: 听写,
+历史记录, 词库, 设置与同步. No microphone exists on the simulator: recording failures are expected. The test
+command runs the core self-test on the macOS host.
+"""
+
+[[scenarios]]
+id = "setup-guide"
+title = "First-run setup guide"
+priority = "p0"
+platforms = ["macos", "windows"]
+steps = """
+1. Launch with the launch command (fresh profile). The welcome card 欢迎使用 Typeless appears.
+2. Click 开始设置.
+3. On 权限: click 允许 on the microphone card and accept any system prompt. On macOS also click 允许 on the
+   辅助功能 card and enable the app in System Settings → 隐私与安全性 → 辅助功能 if it opens. Then click 继续 if it
+   is enabled, otherwise 稍后在基本设置中授权.
+4. On 麦克风: check the page, then click 继续.
+5. On 快捷键: press the fallback chord once (macOS Command+Shift+Space, Windows Ctrl+Shift+Space), then click 继续.
+6. On 完成: click 去连接 AI 服务.
+"""
+expect = """
+Every step shows the header 权限 › 麦克风 › 快捷键 › 完成 with the current step emphasised and the progress bar
+advancing, and the art panel stays visible on the right. 完成 shows 还差最后一步 with the three checklist rows.
+The guide closes into the main window on the AI 配置 page with the sidebar 首页, AI 配置, 词库, 基本设置. No crash,
+error dialog or blank window at any point.
+"""
+
+[[scenarios]]
+id = "navigate-pages"
+title = "Visit every page of the main window"
+priority = "p0"
+platforms = ["macos", "windows"]
+steps = """
+1. In the main window click 首页, AI 配置, 词库 and 基本设置 in the sidebar, in that order.
+2. On each page scroll to the bottom.
+"""
+expect = """
+Each page shows its header and all of its content; nothing overlaps or is clipped. 基本设置 shows the 通用 group
+with the 语言 row (中文 / English) and the 关于 row with the app version.
+"""
+
+[[scenarios]]
+id = "language-switch"
+title = "Switch the interface to English and back"
+priority = "p0"
+platforms = ["macos", "windows"]
+steps = """
+1. 基本设置 → 通用 → 语言: choose English.
+2. Visit every page from the sidebar (Home, AI Setup, Vocabulary, Settings).
+3. Switch the language back to 中文.
+"""
+expect = """
+After step 1 every navigation item and all page copy is English with no Chinese characters, apart from data the
+user entered. After step 3 the Chinese interface returns. The layout holds in both languages.
+"""
+
+[[scenarios]]
+id = "desktop-vocabulary"
+title = "Add, edit and delete a vocabulary term"
+priority = "p1"
+platforms = ["macos", "windows"]
+paths = ["src/renderer/vocabulary/**", "src/core/vocabulary.ts", "src/core/store.ts"]
+steps = """
+1. Open 词库. Type Claude into 常用词 and 克劳德, 云 into 常被识别成, then click 添加.
+2. Click 编辑 on the new entry, change 常被识别成 to 克劳德, click 保存.
+3. Click 删除 on the entry.
+"""
+expect = """
+After step 1 the list header reads 常用词 · 1 and the entry shows 常被识别成：克劳德、云 and 尚未用到. Step 2 updates
+the variants. After step 3 the list is empty again.
+"""
+
+[[scenarios]]
+id = "ios-tabs"
+title = "Visit every tab of the iOS app"
+priority = "p0"
+platforms = ["ios"]
+steps = """
+1. Install fresh (uninstall first) and launch the app.
+2. Tap 听写, 历史记录, 词库 and 设置与同步 in the tab bar, in that order; scroll each to the bottom.
+"""
+expect = """
+Every tab renders its title and content; tab bar labels are fully visible; nothing overlaps or is clipped on the
+small iPhone SE screen or in Dynamic Type at the largest size; no crash.
+"""
+
+[[scenarios]]
+id = "ios-vocabulary"
+title = "Add and delete a vocabulary term on iOS"
+priority = "p0"
+platforms = ["ios"]
+steps = """
+1. Open the 词库 tab. Type Claude Code into 常用词（例如：Claude Code） and 克劳德, 云 into 常被识别成.
+2. Tap 添加到词库.
+3. Delete the new entry (swipe left on it and confirm).
+"""
+expect = """
+After step 2 the section 已保存词条 (1) lists Claude Code with its variants. After step 3 the count returns to 0
+and the empty-state text appears.
+"""
+
+[[scenarios]]
+id = "ios-language"
+title = "Switch the iOS interface language"
+priority = "p0"
+platforms = ["ios"]
+steps = """
+1. Open 设置与同步 and set 界面语言 to English.
+2. Visit every tab, then switch the language back to 中文.
+"""
+expect = """
+In English every tab title and screen text is English with nothing clipped; switching back restores Chinese.
+"""
+
+[[scenarios]]
+id = "ios-keyboard"
+title = "Typeless keyboard extension renders"
+priority = "p1"
+platforms = ["ios"]
+paths = ["ios/Sources/TypelessKeyboard/**", "ios/Sources/TypelessCore/**"]
+steps = """
+1. In the simulator's Settings app: General → Keyboard → Keyboards → Add New Keyboard… → Typeless.
+2. Open Safari, tap the address bar and switch keyboards with the globe key until the Typeless keyboard shows.
+3. Tap its microphone control once.
+"""
+expect = """
+The keyboard renders completely in light and dark appearance. Without microphone access or API keys the
+microphone control shows a readable message instead of crashing.
+"""
